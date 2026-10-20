@@ -4,6 +4,7 @@ import { SEED_TASKS } from './seedTasks';
 import DrivingStrip from './components/DrivingStrip';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
+import { toPromptContext } from './promptContext';
 import { useLocalStorage } from './useLocalStorage';
 import type { Task } from './types';
 
@@ -46,6 +47,18 @@ export default function App() {
         : [...prev, task]
     );
     close();
+  }
+
+  // REQUIREMENTS 5.G. The clipboard API needs a secure context and can be
+  // refused, so the failure path has to say so — a silent no-op on stage would
+  // look like the demo worked.
+  async function copyContext(task: Task) {
+    try {
+      await navigator.clipboard.writeText(toPromptContext(task));
+      setToast('Context copied. Ready to paste.');
+    } catch {
+      setToast('Copy blocked by the browser. Open the task to copy by hand.');
+    }
   }
 
   function remove(id: string) {
@@ -97,7 +110,11 @@ export default function App() {
                 <ul className="space-y-3">
                   {stageTasks.map((task) => (
                     <li key={task.id}>
-                      <TaskCard task={task} onOpen={(opener) => open(task, opener)} />
+                      <TaskCard
+                        task={task}
+                        onOpen={(opener) => open(task, opener)}
+                        onCopy={() => copyContext(task)}
+                      />
                     </li>
                   ))}
                 </ul>

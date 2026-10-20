@@ -224,7 +224,6 @@ export default function TaskModal({
           </select>
         </div>
 
-        {/* TODO M10 copy-context: "Copy as Prompt Context" button. */}
 
         <div className="mt-6 flex items-center justify-between">
           {task ? (
