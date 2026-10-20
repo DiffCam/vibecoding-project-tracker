@@ -32,6 +32,10 @@ export default {
         text: {
           primary: '#1D1D1F',
           muted: '#86868B',
+        },
+        type: {
+          feature: '#34C759',
+          bug: '#FF9500',
         }
       }
     }

@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { STAGES } from './constants';
 import { SEED_TASKS } from './seedTasks';
+import DrivingStrip from './components/DrivingStrip';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
 import { useLocalStorage } from './useLocalStorage';
@@ -9,11 +10,18 @@ import type { Task } from './types';
 export default function App() {
   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   // The element that opened the modal, so focus can go back to it on close (8.C).
   const openerRef = useRef<HTMLElement | null>(null);
 
   // TODO M11 anchors: const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', ...);
+
+  useEffect(() => {
+    if (toast === null) return;
+    const timer = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   function open(target: Task | 'new', opener: HTMLElement) {
     openerRef.current = opener;
@@ -26,6 +34,12 @@ export default function App() {
   }
 
   function save(task: Task) {
+    // A hand-off is an assignee change on a task that already existed (4.E).
+    const previous = tasks.find((existing) => existing.id === task.id);
+    if (previous && previous.assignee !== task.assignee) {
+      setToast(`Task handed off to ${task.assignee}.`);
+    }
+
     setTasks((prev) =>
       prev.some((existing) => existing.id === task.id)
         ? prev.map((existing) => (existing.id === task.id ? task : existing))
@@ -60,6 +74,8 @@ export default function App() {
       </header>
 
       {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+
+      <DrivingStrip tasks={tasks} />
 
       <main className="flex items-start gap-4">
         {STAGES.map((stage) => {
@@ -99,6 +115,18 @@ export default function App() {
           onClose={close}
         />
       )}
+
+      {/* Always mounted: a live region has to exist before its text changes to be
+          announced, and keeping it rendered gives the 200 ms fade both ways free. */}
+      <div
+        role="status"
+        aria-live="polite"
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-text-primary px-4 py-2 text-sm text-white transition-opacity duration-200 ${
+          toast ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        {toast}
+      </div>
     </div>
   );
 }

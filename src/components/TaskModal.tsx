@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { STAGES, TEAM } from '../constants';
+import { STAGES, TEAM, TYPE_ACCENT } from '../constants';
+import TypeIcon from './TypeIcon';
 import type { Task, TaskStatus, TaskType } from '../types';
 
 // Native <dialog> + showModal() so the focus trap, Escape-to-close, inert
@@ -58,8 +59,19 @@ export default function TaskModal({
           onSave(form);
         }}
       >
-        <h2 id="task-modal-title" className="mb-4 text-base font-semibold text-text-primary">
+        {/* Same accent as the card, live-updating with the Type select (3.A). */}
+        <h2
+          id="task-modal-title"
+          className="mb-4 flex items-center gap-2 text-base font-semibold text-text-primary"
+        >
+          <TypeIcon
+            type={form.type}
+            className={`h-4 w-4 shrink-0 ${TYPE_ACCENT[form.type].text}`}
+          />
           {task ? 'Edit Task' : 'New Task'}
+          <span className={`text-sm font-normal ${TYPE_ACCENT[form.type].text}`}>
+            · {TYPE_ACCENT[form.type].label}
+          </span>
         </h2>
 
         <div className="space-y-3">
