@@ -14,14 +14,25 @@
   --surface-page: 229 229 234;  /* #E5E5EA */
   --surface-card: 245 245 247;  /* #F5F5F7 */
   --text-primary: 29 29 31;     /* #1D1D1F */
-  --text-muted: 134 134 139;    /* #86868B */
+  /* Darker than DESIGN.md §2's #86868B, which failed AA on every surface it
+     lands on (2.36:1 on the deep lane, 3.33:1 on a card). This is the lightest
+     value clearing 4.5:1 everywhere, and still 2.27:1 off the ink. */
+  --text-muted: 85 85 90;       /* #55555A */
   --line: 209 209 214;          /* #D1D1D6 */
+  /* Two recessed tones, used for the alternating swim lanes and for any panel
+     that should read as sunken rather than raised (deliverable slots, team
+     chips). Both sit below the page so cards stay the lightest thing. */
+  --surface-sunken: 220 220 225;     /* #DCDCE1 */
+  --surface-sunken-alt: 208 208 214; /* #D0D0D6 */
+  --surface-chrome: 250 250 252; /* #FAFAFC — brighter than the content area:
+                                   a toolbar over the page, not a grey band */
   --ink: 29 29 31;              /* #1D1D1F — see note in the dark block */
   --type-feature: 52 199 89;    /* #34C759 */
   --type-bug: 255 149 0;        /* #FF9500 */
   --due-safe: 52 199 89;        /* #34C759 */
   --due-warning: 255 204 0;     /* #FFCC00 */
-  --due-overdue: 255 59 48;     /* #FF3B30 */
+  --due-overdue: 215 0 21;      /* #D70015 — deeper than DESIGN.md's #FF3B30 so
+                                   white sits on it at 5.4:1 instead of 3.6:1 */
 }
 
 :root.dark {
@@ -34,6 +45,15 @@
   --text-primary: 245 245 247;  /* #F5F5F7 */
   --text-muted: 174 174 178;    /* #AEAEB2 */
   --line: 72 72 74;             /* #48484A */
+  --surface-sunken: 23 23 25;        /* #171719 */
+  /* The deep lane is literally the header tone, so the chrome, the alternating
+     lanes and the recessed panels are all one colour. Aliased rather than
+     copied so tweaking the header keeps them in step. */
+  --surface-sunken-alt: var(--surface-chrome);
+  /* Direction flips with the theme, which is the usual convention: a bright
+     toolbar over content in light, a darker one in dark. Pure black read as
+     too heavy, so this stops short of it. */
+  --surface-chrome: 16 16 18;   /* #101012 */
   /* Deliberately NOT inverted: --ink sits on the due pills, whose fills stay
      bright in both themes. Flipping it to white would drop the yellow pill to
      1.30:1. Dark ink keeps all three pills above 4.9:1 either way. */
@@ -42,7 +62,7 @@
   --type-bug: 255 159 10;       /* #FF9F0A */
   --due-safe: 48 209 88;        /* #30D158 */
   --due-warning: 255 214 10;    /* #FFD60A */
-  --due-overdue: 255 69 58;     /* #FF453A */
+  --due-overdue: 215 0 21;      /* #D70015 — see light block */
 }
 
 html, body, #root {

@@ -1,4 +1,4 @@
-import { DUE_FILL, TYPE_ACCENT } from '../constants';
+import { DUE_PILL, TYPE_ACCENT } from '../constants';
 import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
 import TypeIcon from './TypeIcon';
@@ -82,30 +82,51 @@ export default function TaskCard({
           <p className="mt-1 line-clamp-2 text-sm text-text-muted">{task.description}</p>
         )}
 
-        <div className="mt-2 flex items-center justify-between gap-2">
+        {/* One footer row — due, copy, owner — over a rule, which is the
+            strongest single cue that a card has a body and a footer rather
+            than being one undifferentiated block. Wraps rather than
+            overflowing when a long "Overdue · date" leaves no room. */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-line pt-2">
           {/* The urgency is in the words as much as the colour (NFR 3.B). */}
           {due.state === 'none' ? (
             <span className="text-xs text-text-muted">{due.label}</span>
           ) : (
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium text-ink ${DUE_FILL[due.state]}`}
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${DUE_PILL[due.state]}`}
             >
               {due.label}
             </span>
           )}
-          <Avatar name={task.assignee} />
+
+          {/* relative z-10 lifts it above the title button's stretched ::after. */}
+          <button
+            type="button"
+            onClick={onCopy}
+            aria-label={`Copy Context for ${task.title}`}
+            className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-xs text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            {/* Lucide's copy glyph, hand-rolled to stay dependency-free like TypeIcon. */}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3 w-3 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="8" y="8" width="14" height="14" rx="2" />
+              <path d="M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2" />
+            </svg>
+            Copy Context
+          </button>
+
+          <span className="ml-auto flex items-center">
+            <Avatar name={task.assignee} />
+          </span>
           <span className="sr-only">Assigned to {task.assignee}</span>
         </div>
-
-        {/* relative z-10 lifts it above the title button's stretched ::after. */}
-        <button
-          type="button"
-          onClick={onCopy}
-          aria-label={`Copy Context for ${task.title}`}
-          className="relative z-10 mt-3 w-full rounded-full bg-surface-page px-3 py-1.5 text-xs font-medium text-text-primary hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-        >
-          Copy Context
-        </button>
       </div>
     </div>
   );

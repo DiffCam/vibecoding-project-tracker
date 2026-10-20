@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
+import CollapsibleSection from './CollapsibleSection';
 import MemberTasksDialog from './MemberTasksDialog';
 import type { Task } from '../types';
 
@@ -57,6 +58,10 @@ export default function DrivingStrip({
   // The pill that opened the dialog, so focus returns to it on close (8.C).
   const openerRef = useRef<HTMLElement | null>(null);
 
+  const activeTotal = tasks.filter(
+    (task) => task.status !== 'done' && team.includes(task.assignee)
+  ).length;
+
   const scrollerRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
@@ -84,10 +89,11 @@ export default function DrivingStrip({
   }
 
   return (
-    <section aria-labelledby="driving-heading" className="mb-6">
-      <h2 id="driving-heading" className="mb-3 text-base font-semibold uppercase text-text-primary">
-        Driving
-      </h2>
+    <CollapsibleSection
+      id="driving"
+      title="Driving"
+      meta={`${activeTotal} active`}
+    >
 
       <div className="relative">
         {/* The team is editable, so this has to survive an arbitrary number of
@@ -98,7 +104,10 @@ export default function DrivingStrip({
           ref={scrollerRef}
           onScroll={syncEdges}
           aria-label="Team members and what they are driving"
-          className="flex gap-4 overflow-x-auto pb-2"
+          // Scrollbar hidden: the fade and the edge buttons already say there
+          // is more, so the bar is noise. pb-2 stays — overflow-x:auto also
+          // clips vertically, and without it the chips' focus rings get cut.
+          className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {team.map((member) => {
             const active = tasks.filter(
@@ -109,7 +118,9 @@ export default function DrivingStrip({
             return (
               <li
                 key={member}
-                className="w-64 shrink-0 rounded-lg border border-line bg-surface-card p-3"
+                // The header tone: in dark that reads recessed, in light
+                // raised. Either way it is the same material as the chrome.
+                className="w-64 shrink-0 rounded-lg bg-surface-chrome p-3"
               >
                 <div className="flex items-center gap-2">
                   <Avatar name={member} />
@@ -121,10 +132,19 @@ export default function DrivingStrip({
                   <p className="mt-2 text-xs text-text-muted">Nothing active — enjoy it.</p>
                 ) : (
                   <>
+                    {/* Clickable in their own right — with two or fewer tasks
+                        there is no "+N more" pill, so plain text would leave
+                        the chip with no way into a task at all. */}
                     <ul className="mt-2 space-y-1">
                       {active.slice(0, VISIBLE).map((task) => (
-                        <li key={task.id} className="truncate text-xs text-text-muted">
-                          {task.title}
+                        <li key={task.id}>
+                          <button
+                            type="button"
+                            onClick={(event) => onOpenTask(task, event.currentTarget)}
+                            className="block w-full truncate rounded text-left text-xs text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                          >
+                            {task.title}
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -171,6 +191,6 @@ export default function DrivingStrip({
           }}
         />
       )}
-    </section>
+    </CollapsibleSection>
   );
 }

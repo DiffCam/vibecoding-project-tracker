@@ -21,6 +21,9 @@ export default {
         surface: {
           page: token('surface-page'),
           card: token('surface-card'),
+          chrome: token('surface-chrome'),
+          sunken: token('surface-sunken'),
+          'sunken-alt': token('surface-sunken-alt'),
         },
         text: {
           primary: token('text-primary'),

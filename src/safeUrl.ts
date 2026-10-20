@@ -18,3 +18,20 @@ export function safeUrl(raw: string | null): string | null {
     return null; // no scheme, or not a URL at all
   }
 }
+
+/**
+ * What to store when someone saves a deliverable link: the same http(s)-only
+ * rule, but a bare `vercel.com/x` gets `https://` assumed the way a browser
+ * address bar would. Null means "this is not a link" — the caller says so
+ * rather than silently storing junk.
+ *
+ * Only safe because saving is now explicit: an unparseable value shows an
+ * error instead of being quietly accepted while the user types.
+ */
+export function normalizeUrl(raw: string): string | null {
+  const value = raw.trim();
+  if (value === '') return null;
+
+  const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(value);
+  return safeUrl(hasScheme ? value : `https://${value}`);
+}

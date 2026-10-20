@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { DUE_FILL, STAGES } from '../constants';
+import { DUE_PILL, STAGES } from '../constants';
 import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
 import type { Task } from '../types';
@@ -59,7 +59,7 @@ export default function MemberTasksDialog({
                     <span>· {due.label}</span>
                   ) : (
                     <span
-                      className={`rounded-full px-2 py-0.5 font-medium text-ink ${DUE_FILL[due.state]}`}
+                      className={`rounded-full px-2 py-0.5 font-medium ${DUE_PILL[due.state]}`}
                     >
                       {due.label}
                     </span>

@@ -25,7 +25,7 @@ export default function App() {
   const [grabbed, setGrabbed] = useState<{ id: string; target: TaskStatus } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showTeam, setShowTeam] = useState(false);
-  const boardRef = useRef<HTMLElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   // The element that opened the modal, so focus can go back to it on close (8.C).
   const openerRef = useRef<HTMLElement | null>(null);
@@ -193,10 +193,11 @@ export default function App() {
     }
   }
 
-  function setAnchorUrl(id: Anchor['id'], url: string) {
+  function setAnchorUrl(id: Anchor['id'], url: string | null) {
     setAnchors((prev) =>
-      prev.map((anchor) => (anchor.id === id ? { ...anchor, url: url || null } : anchor))
+      prev.map((anchor) => (anchor.id === id ? { ...anchor, url } : anchor))
     );
+    setToast(url === null ? 'Link cleared.' : 'Link saved.');
   }
 
   function remove(id: string) {
@@ -205,125 +206,160 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-page p-6 font-sans">
-      <header className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl text-text-primary">
-            <span className="font-semibold">Vibe</span>
-            <span className="font-normal">Check</span>
-          </h1>
-          <p className="text-sm text-text-muted">DiffCam · Developer Development</p>
-        </div>
+    <div className="min-h-screen bg-surface-page font-sans">
+      {/* Background only, no hairline: chrome is a step darker than the content
+          area in both themes — pure black in dark, #C2C2C8 in light. */}
+      <header className="sticky top-0 z-20 bg-surface-chrome">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-6 px-6 py-3">
+          <div>
+            <h1 className="text-2xl text-text-primary">
+              <span className="font-semibold">Vibe</span>
+              <span className="font-normal">Check</span>
+            </h1>
+            <p className="font-mono text-xs text-text-muted">
+              DiffCam · Developer Development
+            </p>
+          </div>
 
-        <div className="flex items-center gap-4">
-          <ThemeToggle
-            dark={theme === 'dark'}
-            onChange={(dark) => setTheme(dark ? 'dark' : 'light')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowTeam(true)}
-            className="rounded-full border border-line px-4 py-2 text-sm font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-          >
-            Team
-          </button>
-          <button
-            type="button"
-            onClick={(event) => open('new', event.currentTarget)}
-            className="rounded-full bg-brand-primary px-5 py-2 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-          >
-            New Task
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle
+              dark={theme === 'dark'}
+              onChange={(dark) => setTheme(dark ? 'dark' : 'light')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowTeam(true)}
+              className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              Team
+            </button>
+            <button
+              type="button"
+              onClick={(event) => open('new', event.currentTarget)}
+              className="rounded-full bg-brand-primary px-5 py-1.5 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              New Task
+            </button>
+          </div>
         </div>
       </header>
 
-      <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
+      <main className="mx-auto flex max-w-[1600px] flex-col gap-4 px-6 py-4">
+        <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
 
-      <DrivingStrip tasks={tasks} team={team} onOpenTask={open} />
+        <DrivingStrip tasks={tasks} team={team} onOpenTask={open} />
 
-      <p className="mb-2 text-xs text-text-muted">
-        Tap <kbd className="font-mono">{MODIFIER_LABEL}</kbd> to jump to the board · ← → ↑ ↓ to
-        move around · Space to grab and carry between columns, Space or{' '}
-        <kbd className="font-mono">{MODIFIER_LABEL}</kbd> to place, Esc to cancel · Enter to open
-      </p>
+        <section aria-labelledby="board-heading">
+          {/* Heading and hint share a row rather than stacking — one line back. */}
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <h2
+              id="board-heading"
+              className="text-base font-semibold uppercase text-text-primary"
+            >
+              Board
+            </h2>
+            <p className="font-mono text-xs text-text-muted">
+              Tap <kbd>{MODIFIER_LABEL}</kbd> for the board · ← → ↑ ↓ move · Space grabs and
+              carries · Space/<kbd>{MODIFIER_LABEL}</kbd> places · Esc cancels · Enter opens
+            </p>
+          </div>
 
-      <main
-        ref={boardRef}
-        onKeyDown={onBoardKeyDown}
-        onBlur={(event) => {
-          // Tabbing out of the board places the carried card, same as clicking
-          // away. relatedTarget is null when the node is merely being
-          // re-rendered mid-carry, and that must not count as leaving; the
-          // effect above refocuses it.
-          const next = event.relatedTarget as Node | null;
-          if (grabbed && next && !event.currentTarget.contains(next)) placeGrabbed(grabbed);
-        }}
-        className="flex items-start gap-4"
-      >
-        {STAGES.map((stage) => {
-          const stageTasks = tasks.filter((task) => statusOf(task) === stage.id);
-          const headingId = `column-${stage.id}`;
+          <div
+            ref={boardRef}
+            onKeyDown={onBoardKeyDown}
+            onBlur={(event) => {
+              // Tabbing out of the board places the carried card, same as
+              // clicking away. relatedTarget is null when the node is merely
+              // being re-rendered mid-carry, and that must not count as
+              // leaving; the effect above refocuses it.
+              const next = event.relatedTarget as Node | null;
+              if (grabbed && next && !event.currentTarget.contains(next)) placeGrabbed(grabbed);
+            }}
+            // Lanes butt together with no gap and no borders: alternating
+            // bands, so a lane never reads as a big version of the cards
+            // inside it. Rounding lives on the board, not each lane.
+            className="grid grid-cols-4 overflow-hidden rounded-xl"
+          >
+            {STAGES.map((stage, index) => {
+              const stageTasks = tasks.filter((task) => statusOf(task) === stage.id);
+              const headingId = `column-${stage.id}`;
+              const isTarget = dragOverStage === stage.id;
 
-          return (
-            <section key={stage.id} aria-labelledby={headingId} className="min-w-0 flex-1">
-              <h2 id={headingId} className="mb-3 text-base font-semibold uppercase text-text-primary">
-                {stage.label}{' '}
-                <span className="font-normal text-text-muted">{stageTasks.length}</span>
-              </h2>
-
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault(); // without this the drop never fires
-                  event.dataTransfer.dropEffect = 'move';
-                  setDragOverStage(stage.id);
-                }}
-                onDragLeave={(event) => {
-                  // Fires for every child too, so only clear when the pointer
-                  // has actually left the column.
-                  if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+              return (
+                <section
+                  key={stage.id}
+                  aria-labelledby={headingId}
+                  onDragOver={(event) => {
+                    event.preventDefault(); // without this the drop never fires
+                    event.dataTransfer.dropEffect = 'move';
+                    setDragOverStage(stage.id);
+                  }}
+                  onDragLeave={(event) => {
+                    // Fires for every child too, so only clear when the pointer
+                    // has actually left the column.
+                    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                      setDragOverStage(null);
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const id = event.dataTransfer.getData('text/plain');
+                    if (id) moveTask(id, stage.id);
                     setDragOverStage(null);
-                  }
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const id = event.dataTransfer.getData('text/plain');
-                  if (id) moveTask(id, stage.id);
-                  setDragOverStage(null);
-                }}
-                className={`min-h-24 rounded-lg p-1 ${
-                  dragOverStage === stage.id ? 'ring-2 ring-brand-primary' : ''
-                }`}
-              >
-                {stageTasks.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-line p-4 text-sm text-text-muted">
-                    You've got no tasks; click "+"/"New Task" to get started!
-                  </p>
-                ) : (
-                  <ul className="space-y-3">
-                    {stageTasks.map((task) => (
-                      <li key={task.id}>
-                        <TaskCard
-                          task={task}
-                          onOpen={(opener) => open(task, opener)}
-                          onCopy={() => copyContext(task)}
-                          onDragEnd={() => setDragOverStage(null)}
-                          onHighlight={setHighlighted}
-                          selection={
-                            grabbed?.id === task.id
-                              ? 'grabbed'
-                              : highlighted === task.id
-                                ? 'highlighted'
-                                : null
-                          }
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </section>
-          );
-        })}
+                  }}
+                  className={`flex min-h-96 min-w-0 flex-col p-3 transition-colors ${
+                    isTarget
+                      ? 'bg-brand-primary/10'
+                      : index % 2 === 0
+                        ? 'bg-surface-sunken'
+                        : 'bg-surface-sunken-alt'
+                  }`}
+                >
+                  <h3
+                    id={headingId}
+                    className="mb-3 flex items-center gap-2 text-base font-semibold uppercase text-text-primary"
+                  >
+                    {stage.label}
+                    <span className="rounded-full bg-surface-page px-2 py-0.5 font-mono text-xs font-normal text-text-muted">
+                      {stageTasks.length}
+                    </span>
+                  </h3>
+
+                  {stageTasks.length === 0 ? (
+                    // The onboarding line only makes sense when the whole board
+                    // is empty; a lane that is merely empty is just empty.
+                    <p className="rounded-lg border border-dashed border-line p-3 text-sm text-text-muted">
+                      {tasks.length === 0
+                        ? `You've got no tasks; click "+"/"New Task" to get started!`
+                        : 'Nothing here.'}
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-2.5">
+                      {stageTasks.map((task) => (
+                        <li key={task.id}>
+                          <TaskCard
+                            task={task}
+                            onOpen={(opener) => open(task, opener)}
+                            onCopy={() => copyContext(task)}
+                            onDragEnd={() => setDragOverStage(null)}
+                            onHighlight={setHighlighted}
+                            selection={
+                              grabbed?.id === task.id
+                                ? 'grabbed'
+                                : highlighted === task.id
+                                  ? 'highlighted'
+                                  : null
+                            }
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </section>
       </main>
 
       {editing !== null && (
