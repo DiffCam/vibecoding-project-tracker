@@ -1,17 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-// export default {
-//   content: ['./index.html', './src/**/*.{js,jsx}'],
-//   theme: {
-//     extend: {
-//       colors: {
-//         // Tweak in M6 (tag-style) and M8 (due-tint)
-//         feature: '#10B981', // emerald
-//         bug: '#DC2626',     // crimson
-//       },
-//     },
-//   },
-//   plugins: [],
-// };
+
+// Every colour resolves through a CSS variable defined in src/index.css, so the
+// light/dark swap happens by flipping one class on <html> — no `dark:` variant
+// on any component. Values are space-separated RGB channels so Tailwind's
+// opacity modifiers (bg-black/40, ring-brand-primary/50) still work.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
 export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
@@ -22,29 +15,31 @@ export default {
       },
       colors: {
         brand: {
-          primary: '#007AFF',
-          accent: '#FF2D55',
+          primary: token('brand-primary'),
+          accent: token('brand-accent'),
         },
         surface: {
-          page: '#E5E5EA', // Darkened slightly
-          card: '#F5F5F7', // The new "white"
+          page: token('surface-page'),
+          card: token('surface-card'),
         },
         text: {
-          primary: '#1D1D1F',
-          muted: '#86868B',
+          primary: token('text-primary'),
+          muted: token('text-muted'),
         },
+        // Hairline borders — DESIGN.md §4's 1px card edge.
+        line: token('line'),
+        // Text that sits on a coloured fill, and so must not invert with the theme.
+        ink: token('ink'),
         type: {
-          feature: '#34C759',
-          bug: '#FF9500',
+          feature: token('type-feature'),
+          bug: token('type-bug'),
         },
-        // DESIGN.md §2 due states. `due-neutral` is omitted on purpose — it is
-        // #86868B, the same value as text-muted, which Done cards already use.
         due: {
-          safe: '#34C759',
-          warning: '#FFCC00',
-          overdue: '#FF3B30',
-        }
-      }
-    }
-  }
-}
+          safe: token('due-safe'),
+          warning: token('due-warning'),
+          overdue: token('due-overdue'),
+        },
+      },
+    },
+  },
+};

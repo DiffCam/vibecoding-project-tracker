@@ -7,3 +7,8 @@ dist
 .idea
 .vscode
 *.log
+
+# The same brief one-shot in Vercel v0, kept locally to compare against.
+# Not part of this project — it is a separate Next.js app with its own
+# lockfile, which would otherwise confuse Vercel's build detection.
+vercel-v0-one-shot-alternative/

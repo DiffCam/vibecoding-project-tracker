@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TEAM, TYPE_ACCENT } from '../constants';
+import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TYPE_ACCENT } from '../constants';
 import { relativeTime } from '../relativeTime';
 import TypeIcon from './TypeIcon';
 import type { AITool, Task, TaskStatus, TaskType } from '../types';
@@ -8,17 +8,17 @@ import type { AITool, Task, TaskStatus, TaskType } from '../types';
 // background and backdrop all come from the platform instead of our code.
 
 const FIELD =
-  'w-full rounded-lg border border-gray-200 bg-surface-card px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
+  'w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 const LABEL = 'block text-xs text-text-muted mb-1';
 
-function blankTask(): Task {
+function blankTask(team: string[]): Task {
   return {
     id: crypto.randomUUID(),
     title: '',
     description: '',
     type: 'feature',
     status: 'todo',
-    assignee: TEAM[0],
+    assignee: team[0],
     dueDate: null,
     createdDate: new Date().toISOString().slice(0, 10), // REQUIREMENTS 2.D
     context: CONTEXT_TEMPLATE, // REQUIREMENTS 5.B
@@ -29,16 +29,18 @@ function blankTask(): Task {
 
 export default function TaskModal({
   task,
+  team,
   onSave,
   onDelete,
   onClose,
 }: {
   task: Task | null; // null = create mode
+  team: string[];
   onSave: (task: Task) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<Task>(() => task ?? blankTask());
+  const [form, setForm] = useState<Task>(() => task ?? blankTask(team));
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   // What the context started as, so saving only re-stamps it when it actually
@@ -55,7 +57,7 @@ export default function TaskModal({
       ref={dialogRef}
       aria-labelledby="task-modal-title"
       onClose={onClose}
-      className="m-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      className="m-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border border-line bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
       <form
         onSubmit={(event) => {
@@ -158,7 +160,13 @@ export default function TaskModal({
                 value={form.assignee}
                 onChange={(event) => setForm({ ...form, assignee: event.target.value })}
               >
-                {TEAM.map((member) => (
+                {/* An assignee no longer on the team (hand-edited storage, or
+                    data from an older roster) would otherwise render as blank
+                    and be silently rewritten on save. Show the truth instead. */}
+                {!team.includes(form.assignee) && (
+                  <option value={form.assignee}>{form.assignee} (not on the team)</option>
+                )}
+                {team.map((member) => (
                   <option key={member} value={member}>
                     {member}
                   </option>

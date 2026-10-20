@@ -9,9 +9,10 @@ export const STAGES: readonly { id: TaskStatus; label: string }[] = [
   { id: 'done', label: 'Done' },
 ];
 
-// PRD §8 — the only valid values for `Task.assignee`.
-// B and C are placeholders so hand-off is demoable; swap in real names when known.
-export const TEAM: readonly string[] = ['Cameron Farr', 'Teammate B', 'Teammate C'];
+// PRD §8 — the starting roster. The live list is editable and lives in
+// localStorage under 'vibetracker.team'; this is only the first-run default.
+// B and C are placeholders so hand-off is demoable; rename them in the app.
+export const DEFAULT_TEAM: string[] = ['Cameron Farr', 'Teammate B', 'Teammate C'];
 
 // REQUIREMENTS 6.B — exactly these four slots, in this order. Only `url` ever
 // changes, so this doubles as the default state for the anchors key.

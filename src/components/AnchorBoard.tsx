@@ -25,12 +25,12 @@ export default function AnchorBoard({
           return (
             <li
               key={anchor.id}
-              className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-surface-card p-3"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-card p-3"
             >
               <div className="mb-1 flex items-center gap-2">
                 <span
                   className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                    href ? 'bg-brand-primary' : 'border border-gray-400'
+                    href ? 'bg-brand-primary' : 'border border-text-muted'
                   }`}
                   aria-hidden="true"
                 />
@@ -59,7 +59,7 @@ export default function AnchorBoard({
                 placeholder="https://…"
                 value={anchor.url ?? ''}
                 onChange={(event) => onChange(anchor.id, event.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-surface-page px-2 py-1 text-xs text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                className="w-full rounded-lg border border-line bg-surface-page px-2 py-1 text-xs text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
               />
             </li>
           );

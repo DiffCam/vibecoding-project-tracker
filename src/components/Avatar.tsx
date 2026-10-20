@@ -12,7 +12,7 @@ export default function Avatar({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-surface-page text-[10px] font-medium text-text-primary"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-line bg-surface-page text-[10px] font-medium text-text-primary"
     >
       {initials}
     </span>
