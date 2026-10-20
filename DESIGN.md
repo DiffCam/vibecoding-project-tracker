@@ -13,13 +13,13 @@
 
 One sentence that captures the feeling the tracker should leave you with.
 
-`<TODO>`
+`A clean, intuitive and professional DX tool cemented around productivity enhancement and task management.`
 
 Two or three references that capture the vibe (links to dribbble shots, screenshots of apps you admire, Pinterest boards — anything visual):
 
-- `<TODO>`
-- `<TODO>`
-- `<TODO>`
+- `https://dribbble.com/shots/25808347-Kanban-board-Project-Management`
+- `https://www.atlassian.com/software/jira`
+- `https://developer.apple.com/design/human-interface-guidelines`
 
 Anti-references — what we are explicitly **not** trying to look like:
 
