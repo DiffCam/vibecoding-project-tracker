@@ -17,6 +17,8 @@ export const SEED_TASKS: Task[] = [
     context: '',
     contextTool: null,
     contextUpdatedAt: null,
+    milestoneId: null,
+    tags: [],
   },
   {
     id: 'seed-2',
@@ -59,6 +61,8 @@ it cannot be hoisted into an effect.
 3. Confirm the fenced code block survives the round-trip into a chat window.`,
     contextTool: 'Claude',
     contextUpdatedAt: '2026-10-20T09:14:00.000Z',
+    milestoneId: null,
+    tags: ['VIP', 'System:Clipboard'],
   },
   {
     id: 'seed-3',
@@ -73,6 +77,8 @@ it cannot be hoisted into an effect.
     context: '',
     contextTool: null,
     contextUpdatedAt: null,
+    milestoneId: null,
+    tags: ['System:Clipboard'],
   },
   {
     id: 'seed-4',
@@ -87,5 +93,7 @@ it cannot be hoisted into an effect.
     context: '',
     contextTool: null,
     contextUpdatedAt: null,
+    milestoneId: null,
+    tags: [],
   },
 ];

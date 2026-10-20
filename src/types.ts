@@ -17,6 +17,20 @@ export interface Task {
   context: string; // Markdown supported string
   contextTool: AITool;
   contextUpdatedAt: string | null; // ISO timestamp
+  /**
+   * Which milestone tab the task belongs to; null is the unfiled default.
+   * An addition to the model PRD §5 calls locked — worth recording there.
+   * Tasks saved before this existed read back as undefined, so every
+   * comparison coalesces with `?? null`.
+   */
+  milestoneId: string | null;
+  /** Free-form labels, optionally grouped as "Group:Name". See src/tags.ts. */
+  tags: string[];
+}
+
+export interface Milestone {
+  id: string;
+  name: string;
 }
 
 export interface Anchor {

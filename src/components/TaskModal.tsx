@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TYPE_ACCENT } from '../constants';
 import { relativeTime } from '../relativeTime';
 import TypeIcon from './TypeIcon';
-import type { AITool, Task, TaskStatus, TaskType } from '../types';
+import { colorFor, TAG_INK } from '../tagColor';
+import type { AITool, Milestone, Task, TaskStatus, TaskType } from '../types';
 
 // Native <dialog> + showModal() so the focus trap, Escape-to-close, inert
 // background and backdrop all come from the platform instead of our code.
@@ -11,36 +12,53 @@ const FIELD =
   'w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 const LABEL = 'block text-xs text-text-muted mb-1';
 
-function blankTask(team: string[]): Task {
+function blankTask(team: string[], defaults: NewTaskDefaults): Task {
   return {
     id: crypto.randomUUID(),
     title: '',
     description: '',
     type: 'feature',
-    status: 'todo',
-    assignee: team[0],
+    status: defaults.status ?? 'todo',
+    assignee: defaults.assignee ?? team[0],
     dueDate: null,
     createdDate: new Date().toISOString().slice(0, 10), // REQUIREMENTS 2.D
     context: CONTEXT_TEMPLATE, // REQUIREMENTS 5.B
     contextTool: null,
     contextUpdatedAt: null,
+    milestoneId: defaults.milestoneId ?? null,
+    tags: [],
   };
 }
+
+export type NewTaskDefaults = {
+  status?: TaskStatus;
+  assignee?: string;
+  milestoneId?: string | null;
+};
 
 export default function TaskModal({
   task,
   team,
+  milestones,
+  allTags,
+  tagColors,
+  defaults,
   onSave,
   onDelete,
   onClose,
 }: {
   task: Task | null; // null = create mode
   team: string[];
+  milestones: Milestone[];
+  allTags: string[];
+  tagColors: Record<string, string>;
+  /** Pre-selections when creating: the lane or the teammate you came from. */
+  defaults: NewTaskDefaults;
   onSave: (task: Task) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<Task>(() => task ?? blankTask(team));
+  const [form, setForm] = useState<Task>(() => task ?? blankTask(team, defaults));
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   // What the context started as, so saving only re-stamps it when it actually
@@ -175,6 +193,27 @@ export default function TaskModal({
             </div>
 
             <div>
+              <label className={LABEL} htmlFor="task-milestone">
+                Milestone
+              </label>
+              <select
+                id="task-milestone"
+                className={FIELD}
+                value={form.milestoneId ?? ''}
+                onChange={(event) =>
+                  setForm({ ...form, milestoneId: event.target.value || null })
+                }
+              >
+                <option value="">None</option>
+                {milestones.map((milestone) => (
+                  <option key={milestone.id} value={milestone.id}>
+                    {milestone.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className={LABEL} htmlFor="task-due">
                 Due date
               </label>
@@ -210,6 +249,40 @@ export default function TaskModal({
             onChange={(event) => setForm({ ...form, context: event.target.value })}
           />
         </div>
+
+        {allTags.length > 0 && (
+          <div className="mt-3">
+            <p className={LABEL}>Tags</p>
+            <div className="flex flex-wrap gap-2">
+              {allTags.map((tag) => {
+                const on = form.tags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        tags: on
+                          ? form.tags.filter((existing) => existing !== tag)
+                          : [...form.tags, tag],
+                      })
+                    }
+                    // Selected tags wear their own colour, so the picker and
+                    // the card agree on what each tag looks like.
+                    style={on ? { backgroundColor: colorFor(tag, tagColors), color: TAG_INK } : undefined}
+                    className={`rounded-full px-2.5 py-0.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
+                      on ? '' : 'bg-surface-page text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 w-48">
           <label className={LABEL} htmlFor="task-tool">

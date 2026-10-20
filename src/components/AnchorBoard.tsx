@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { normalizeUrl, safeUrl } from '../safeUrl';
 import CollapsibleSection from './CollapsibleSection';
+import Icon from './Icon';
 import type { Anchor } from '../types';
 
 // REQUIREMENTS §6 — the four final deliverables, pinned above the board.
@@ -77,14 +78,14 @@ function AnchorSlot({
       }`}
     >
       <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-            href ? 'bg-brand-primary' : 'border border-text-muted'
-          }`}
+        {/* Shape carries the state as much as colour does (NFR 3.B): an intact
+            link once saved, a snapped one until then. */}
+        <Icon
+          name={href ? 'link' : 'link-broken'}
+          className={`h-4 w-4 shrink-0 ${href ? 'text-brand-primary' : 'text-text-muted'}`}
         />
         <span className="truncate text-sm font-medium text-text-primary">{anchor.label}</span>
-        {/* The dot is colour-only, so the state is also said in words. */}
+        {/* Said in words too, for anyone not seeing the icon at all. */}
         <span className="sr-only">{href ? 'Link added' : 'No link yet'}</span>
       </div>
 

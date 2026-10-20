@@ -65,6 +65,31 @@
   --due-overdue: 215 0 21;      /* #D70015 — see light block */
 }
 
+/* Entrance motion. Deliberately short — the board should be usable before you
+   have finished noticing it moved. */
+@keyframes slide-from-behind {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes rise {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+@keyframes pop {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.anim-slide { animation: slide-from-behind 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-rise  { animation: rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-pop   { animation: pop 320ms cubic-bezier(0.22, 1.25, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-slide, .anim-rise, .anim-pop { animation: none; }
+}
+
 html, body, #root {
   height: 100%;
 }

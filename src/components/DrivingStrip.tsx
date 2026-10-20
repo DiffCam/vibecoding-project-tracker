@@ -49,10 +49,12 @@ export default function DrivingStrip({
   tasks,
   team,
   onOpenTask,
+  onNewTask,
 }: {
   tasks: Task[];
   team: string[];
   onOpenTask: (task: Task, opener: HTMLElement | null) => void;
+  onNewTask: (assignee: string, opener: HTMLElement) => void;
 }) {
   const [openMember, setOpenMember] = useState<string | null>(null);
   // The pill that opened the dialog, so focus returns to it on close (8.C).
@@ -125,7 +127,25 @@ export default function DrivingStrip({
                 <div className="flex items-center gap-2">
                   <Avatar name={member} />
                   <span className="truncate text-sm font-medium text-text-primary">{member}</span>
-                  <span className="ml-auto text-xs text-text-muted">{active.length}</span>
+                  <span className="ml-auto font-mono text-xs text-text-muted">{active.length}</span>
+                  <button
+                    type="button"
+                    onClick={(event) => onNewTask(member, event.currentTarget)}
+                    aria-label={`Add task for ${member}`}
+                    className="shrink-0 rounded-full p-1 text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </button>
                 </div>
 
                 {active.length === 0 ? (

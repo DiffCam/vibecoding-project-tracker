@@ -1,7 +1,9 @@
 import { DUE_PILL, TYPE_ACCENT } from '../constants';
 import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
+import { TagChip } from './TagsDialog';
 import TypeIcon from './TypeIcon';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Task } from '../types';
 
 // Flat, 1px border, no shadow — DESIGN.md §4. The type accent is a stripe child
@@ -29,31 +31,35 @@ export default function TaskCard({
   task,
   onOpen,
   onCopy,
-  onDragEnd,
   onHighlight,
+  onPointerDown,
+  tagColors,
   selection,
+  isDragging = false,
+  isOverlay = false,
 }: {
   task: Task;
   onOpen: (opener: HTMLElement) => void;
   onCopy: () => void;
-  onDragEnd: () => void;
   onHighlight: (id: string | null) => void;
+  onPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
+  /** Resolved tag colours, so a chip looks the same everywhere it appears. */
+  tagColors: Record<string, string>;
   selection: 'highlighted' | 'grabbed' | null;
+  /** The real card, left in place as an invisible spacer while its overlay flies. */
+  isDragging?: boolean;
+  /** The copy under the cursor — already lifted, so no hover or selection state. */
+  isOverlay?: boolean;
 }) {
   const accent = TYPE_ACCENT[task.type];
   const due = dueBadge(task);
 
   return (
     <div
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.setData('text/plain', task.id);
-        event.dataTransfer.effectAllowed = 'move';
-      }}
-      onDragEnd={onDragEnd} // also fires when the drop lands outside a column
-      className={`relative flex cursor-grab overflow-hidden rounded-lg border border-line bg-surface-card transition-transform duration-200 motion-reduce:transition-none active:cursor-grabbing hover:border-brand-primary ${
-        selection ? SELECTION[selection] : ''
-      }`}
+      onPointerDown={onPointerDown}
+      className={`relative flex touch-none select-none overflow-hidden rounded-lg border border-line bg-surface-card ${
+        isOverlay ? 'cursor-grabbing shadow-2xl' : 'cursor-grab hover:border-brand-primary'
+      } ${isDragging ? 'invisible' : ''} ${selection ? SELECTION[selection] : ''}`}
     >
       <span className={`w-1 shrink-0 ${accent.stripe}`} aria-hidden="true" />
 
@@ -82,6 +88,14 @@ export default function TaskCard({
           <p className="mt-1 line-clamp-2 text-sm text-text-muted">{task.description}</p>
         )}
 
+        {task.tags.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {task.tags.map((tag) => (
+              <TagChip key={tag} tag={tag} colors={tagColors} />
+            ))}
+          </div>
+        )}
+
         {/* One footer row — due, copy, owner — over a rule, which is the
             strongest single cue that a card has a body and a footer rather
             than being one undifferentiated block. Wraps rather than
@@ -102,6 +116,7 @@ export default function TaskCard({
           <button
             type="button"
             onClick={onCopy}
+            data-no-drag
             aria-label={`Copy Context for ${task.title}`}
             className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-xs text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
           >
