@@ -7,6 +7,7 @@
 **Who owns this.** Person B, during the same window the rest of the team is reviewing the PRD. By the time the team converges to start M4 (`data-model`), this file should be filled in and the colors should already be in `tailwind.config.js`.
 
 ---
+---
 
 ## 1. Mood / vibe
 
