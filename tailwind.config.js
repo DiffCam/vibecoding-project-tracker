@@ -36,6 +36,13 @@ export default {
         type: {
           feature: '#34C759',
           bug: '#FF9500',
+        },
+        // DESIGN.md §2 due states. `due-neutral` is omitted on purpose — it is
+        // #86868B, the same value as text-muted, which Done cards already use.
+        due: {
+          safe: '#34C759',
+          warning: '#FFCC00',
+          overdue: '#FF3B30',
         }
       }
     }

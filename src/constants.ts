@@ -19,3 +19,12 @@ export const TYPE_ACCENT: Record<TaskType, { stripe: string; text: string; label
   feature: { stripe: 'bg-type-feature', text: 'text-type-feature', label: 'Feature' },
   bug: { stripe: 'bg-type-bug', text: 'text-type-bug', label: 'Bug' },
 };
+
+// DESIGN.md §2 due states, as a solid fill behind text-primary. Apple's due
+// colours are too light to use as text on #F5F5F7 (#FF3B30 reads at 3.1:1),
+// but carrying them as a fill puts near-black on them at 4.7:1 or better.
+export const DUE_FILL: Record<'overdue' | 'warning' | 'safe', string> = {
+  overdue: 'bg-due-overdue',
+  warning: 'bg-due-warning',
+  safe: 'bg-due-safe',
+};

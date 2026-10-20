@@ -1,4 +1,5 @@
-import { TYPE_ACCENT } from '../constants';
+import { DUE_FILL, TYPE_ACCENT } from '../constants';
+import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
 import TypeIcon from './TypeIcon';
 import type { Task } from '../types';
@@ -16,6 +17,7 @@ export default function TaskCard({
   onOpen: (opener: HTMLElement) => void;
 }) {
   const accent = TYPE_ACCENT[task.type];
+  const due = dueBadge(task);
 
   return (
     <button
@@ -40,9 +42,16 @@ export default function TaskCard({
         )}
 
         <span className="mt-2 flex items-center justify-between gap-2">
-          <span className="text-xs text-text-muted">
-            {task.dueDate ? `Due ${task.dueDate}` : 'No due date'}
-          </span>
+          {/* The urgency is in the words as much as the colour (NFR 3.B). */}
+          {due.state === 'none' ? (
+            <span className="text-xs text-text-muted">{due.label}</span>
+          ) : (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium text-text-primary ${DUE_FILL[due.state]}`}
+            >
+              {due.label}
+            </span>
+          )}
           <Avatar name={task.assignee} />
           <span className="sr-only">Assigned to {task.assignee}</span>
         </span>
