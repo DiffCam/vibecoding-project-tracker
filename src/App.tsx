@@ -425,7 +425,7 @@ export default function App() {
                   <span className="font-normal">Check</span>
                 </h1>
                 <p className="font-mono text-xs leading-4 text-text-muted">
-                  Developer Development
+                  Track Vibes; Ship Value.
                 </p>
               </div>
             </div>
