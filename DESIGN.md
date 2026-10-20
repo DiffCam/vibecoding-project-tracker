@@ -22,7 +22,7 @@ Two or three references that capture the vibe (links to dribbble shots, screensh
 
 Anti-references — what we are explicitly **not** trying to look like:
 
-- `<TODO>`
+- `https://github.com/features/issues`
 
 ## 2. Color palette
 
@@ -32,36 +32,36 @@ These are the colors the build milestones will reference. Once chosen, paste the
 
 | Token | Hex | Where it shows up |
 |---|---|---|
-| `brand-primary` | `<TODO>` | Header, "+" button, focus rings |
-| `brand-accent` | `<TODO>` | Highlights, hover states, links |
-| `surface-page` | `<TODO>` | Page background |
-| `surface-card` | `<TODO>` | Card background |
-| `text-primary` | `<TODO>` | Body text |
-| `text-muted` | `<TODO>` | Captions, dates, counts |
+| `brand-primary` | `007AFF` | Header, "+" button, focus rings |
+| `brand-accent` | `FF2D55` | Highlights, hover states, links |
+| `surface-page` | `E5E5EA` | Page background |
+| `surface-card` | `F5F5F7` | Card background |
+| `text-primary` | `1D1D1F` | Body text |
+| `text-muted` | `86868B` | Captions, dates, counts |
 
 ### Task type (M6 `tag-style`)
 
 | Token | Hex | When used |
 |---|---|---|
-| `type-feature` | `<TODO>` | Cards tagged `feature` (accent stripe + icon) |
-| `type-bug` | `<TODO>` | Cards tagged `bug` (accent stripe + icon) |
+| `type-feature` | `34C759` | Cards tagged `feature` (accent stripe + icon) |
+| `type-bug` | `FF9500` | Cards tagged `bug` (accent stripe + icon) |
 
 ### Due-date states (M8 `due-tint`)
 
 | Token | Hex | When used |
 |---|---|---|
-| `due-safe` | `<TODO>` | More than 2 days out |
-| `due-warning` | `<TODO>` | Less than 24 hours |
-| `due-overdue` | `<TODO>` | Past due |
-| `due-neutral` | `<TODO>` | Done (overrides date) |
+| `due-safe` | `34C759` | More than 2 days out |
+| `due-warning` | `FFCC00` | Less than 24 hours |
+| `due-overdue` | `FF3B30` | Past due |
+| `due-neutral` | `86868B` | Done (overrides date) |
 
 ## 3. Typography
 
 | Role | Font | Why |
 |---|---|---|
-| Heading | `<TODO>` | `<TODO one sentence>` |
-| Body | `<TODO>` | `<TODO one sentence>` |
-| Monospace (tags, badges, code) | `<TODO>` | `<TODO one sentence>` |
+| Heading | `Inter` | `A clean, geometric sans-serif that perfectly mimics Apple's native typography on all operating systems.` |
+| Body | `Inter` | `Features an excellent, tall "x-height" optimized for screen readability, reducing eye strain during long reading sessions.` |
+| Monospace (tags, badges, code) | `JetBrains Mono` | `Designed specifically for developers to distinctly separate similar characters (like 1, l, I, 0, O), heavily reducing cognitive load when reading prompts.` |
 
 Suggested sizes (override only if the design demands it):
 
@@ -75,11 +75,11 @@ Suggested sizes (override only if the design demands it):
 
 One short sentence per element. These set the tone for the build phase — Person A's modal and Person B's anchor board should both feel like they came from this doc.
 
-- **Cards:** `<TODO>` (e.g. "Light, almost weightless; the only weight is from a 1px border, no shadow except on hover.")
-- **Buttons:** `<TODO>` (e.g. "Solid fill, no gradient, generous padding, rounded-md.")
-- **Modal:** `<TODO>` (e.g. "Centered, max-width-md, slate-900 backdrop at 50% opacity.")
-- **Empty states:** `<TODO>` (e.g. "Dashed border, muted text, never sad.")
-- **Drag affordance (if used):** `<TODO>` (e.g. "None — we use a status dropdown.")
+- **Cards:** `Flat with a subtle 1px border (border-gray-200); absolutely no drop shadows to maintain the low-glare aesthetic.` (e.g. "Light, almost weightless; the only weight is from a 1px border, no shadow except on hover.")
+- **Buttons:** `Solid flat fill, pill-shaped (rounded-full or rounded-lg for iOS feel), with generous horizontal padding and a subtle opacity shift on hover.` (e.g. "Solid fill, no gradient, generous padding, rounded-md.")
+- **Modal:** `Centered, constrained to max-w-lg, with a simple 40% opacity black backdrop and a subtle background blur (backdrop-blur-sm).` (e.g. "Centered, max-width-md, slate-900 backdrop at 50% opacity.")
+- **Empty states:** `A delicate dashed border with text-muted typography that feels calming, not broken.` (e.g. "Dashed border, muted text, never sad.")
+- **Drag affordance (if used):** `None; we use a clean status dropdown to keep interactions predictable and accessible.` (e.g. "None — we use a status dropdown.")
 
 ## 5. Voice / microcopy
 
@@ -87,18 +87,18 @@ Three lines of microcopy that capture the tone of the product. Keep it short —
 
 | Where | Text |
 |---|---|
-| "+" button label | `<TODO>` (e.g. "+ Task" or "Add task" or "New") |
-| Empty column placeholder | `<TODO>` (e.g. "Nothing here yet — keep going.") |
-| Toast after "Copy as Prompt Context" | `<TODO>` (e.g. "Copied. Now paste it into the AI.") |
-| Confirm-delete message | `<TODO>` (e.g. "Delete this task? You can't undo.") |
-| Handoff toast (M7 `task-owner`) | `<TODO>` (e.g. "Handed off to {name}. They've got it.") |
+| "+" button label | `New Task` (e.g. "+ Task" or "Add task" or "New") |
+| Empty column placeholder | `You've got no tasks; click "+"/"New Task" to get started!` (e.g. "Nothing here yet — keep going.") |
+| Toast after "Copy as Prompt Context" | `Context copied. Ready to paste.` (e.g. "Copied. Now paste it into the AI.") |
+| Confirm-delete message | `Delete this task? This cannot be undone.` (e.g. "Delete this task? You can't undo.") |
+| Handoff toast (M7 `task-owner`) | `Task handed off to {name}.` (e.g. "Handed off to {name}. They've got it.") |
 
 ## 6. Logo / wordmark
 
 The tracker probably doesn't need a logo, but it does need a name and a wordmark style.
 
-- **Product name:** `<TODO>` (match PRD §11 team identity)
-- **Wordmark style:** `<TODO>` (e.g. "Just the name in the heading font, brand-primary color, no icon.")
+- **Product name:** `VibeCheck` (match PRD §11 team identity)
+- **Wordmark style:** `Just the name in the Inter heading font using text-primary, with "DiffCam" in semibold and "Tracker" in regular weight. No icon.` (e.g. "Just the name in the heading font, brand-primary color, no icon.")
 
 ## 7. Out of scope (this hackathon)
 

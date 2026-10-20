@@ -2,10 +2,11 @@
 
 ## 1. Context & Constraints
 - **Goal:** Build a single-page Kanban board tailored for tracking AI-assisted coding (vibecoding) tasks and prompts.
-- **Tech Stack:** React (via Vite), Tailwind CSS, standard React hooks (`useState`, `useEffect`).
+- **Tech Stack:** React (via Vite), Tailwind CSS, standard React hooks (`useState`, `useEffect`). Typescript.
 - **Persistence:** `localStorage` ONLY. No backend, no database, no authentication.
 - **Styling:** Tailwind utility classes only. No external `.css` files. Dark/Light mode not required, sensible defaults preferred.
 - **Target Platform:** Desktop web browser (mobile responsiveness is out of scope).
+- **Design Notes:** Think "If apple made Jira or trello".
 
 ## 2. Core Data Models (Strict Types)
 Use these exact interfaces for state management:
