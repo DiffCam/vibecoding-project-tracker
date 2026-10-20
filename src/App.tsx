@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { STAGES } from './constants';
+import { SEED_ANCHORS, STAGES } from './constants';
 import { SEED_TASKS } from './seedTasks';
+import AnchorBoard from './components/AnchorBoard';
 import DrivingStrip from './components/DrivingStrip';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
 import { toPromptContext } from './promptContext';
 import { useLocalStorage } from './useLocalStorage';
-import type { Task } from './types';
+import type { Anchor, Task } from './types';
 
 export default function App() {
   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
@@ -16,7 +17,7 @@ export default function App() {
   // The element that opened the modal, so focus can go back to it on close (8.C).
   const openerRef = useRef<HTMLElement | null>(null);
 
-  // TODO M11 anchors: const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', ...);
+  const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', SEED_ANCHORS);
 
   useEffect(() => {
     if (toast === null) return;
@@ -61,6 +62,12 @@ export default function App() {
     }
   }
 
+  function setAnchorUrl(id: Anchor['id'], url: string) {
+    setAnchors((prev) =>
+      prev.map((anchor) => (anchor.id === id ? { ...anchor, url: url || null } : anchor))
+    );
+  }
+
   function remove(id: string) {
     setTasks((prev) => prev.filter((task) => task.id !== id));
     close();
@@ -86,7 +93,7 @@ export default function App() {
         </button>
       </header>
 
-      {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+      <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
 
       <DrivingStrip tasks={tasks} />
 

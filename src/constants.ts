@@ -1,4 +1,4 @@
-import type { TaskStatus, TaskType } from './types';
+import type { Anchor, TaskStatus, TaskType } from './types';
 
 // The four columns of the board, in render order (PRD §7).
 // Use these IDs everywhere — do not invent new ones.
@@ -12,6 +12,15 @@ export const STAGES: readonly { id: TaskStatus; label: string }[] = [
 // PRD §8 — the only valid values for `Task.assignee`.
 // B and C are placeholders so hand-off is demoable; swap in real names when known.
 export const TEAM: readonly string[] = ['Cameron Farr', 'Teammate B', 'Teammate C'];
+
+// REQUIREMENTS 6.B — exactly these four slots, in this order. Only `url` ever
+// changes, so this doubles as the default state for the anchors key.
+export const SEED_ANCHORS: Anchor[] = [
+  { id: 'presentation', label: 'Presentation', url: null },
+  { id: 'demo', label: 'Demo', url: null },
+  { id: 'report', label: 'Report', url: null },
+  { id: 'documentation', label: 'Documentation', url: null },
+];
 
 // REQUIREMENTS 5.C — the only tools the context dropdown offers.
 export const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Lovable', 'Replit', 'Other'] as const;
