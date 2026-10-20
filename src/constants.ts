@@ -13,6 +13,20 @@ export const STAGES: readonly { id: TaskStatus; label: string }[] = [
 // B and C are placeholders so hand-off is demoable; swap in real names when known.
 export const TEAM: readonly string[] = ['Cameron Farr', 'Teammate B', 'Teammate C'];
 
+// REQUIREMENTS 5.C — the only tools the context dropdown offers.
+export const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Lovable', 'Replit', 'Other'] as const;
+
+// REQUIREMENTS 5.B — every new task starts from the same four headings, so a
+// briefing is a fill-in-the-blanks job rather than a blank page at 11pm.
+export const CONTEXT_TEMPLATE = `## Background
+
+## Constraints
+
+## Tried so far
+
+## Pick up
+`;
+
 // DESIGN.md §2 task-type accents. Written out per type rather than built as
 // `bg-type-${type}` because Tailwind only emits classes it can see as literals.
 export const TYPE_ACCENT: Record<TaskType, { stripe: string; text: string; label: string }> = {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { STAGES, TEAM, TYPE_ACCENT } from '../constants';
+import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TEAM, TYPE_ACCENT } from '../constants';
+import { relativeTime } from '../relativeTime';
 import TypeIcon from './TypeIcon';
-import type { Task, TaskStatus, TaskType } from '../types';
+import type { AITool, Task, TaskStatus, TaskType } from '../types';
 
 // Native <dialog> + showModal() so the focus trap, Escape-to-close, inert
 // background and backdrop all come from the platform instead of our code.
@@ -20,7 +21,7 @@ function blankTask(): Task {
     assignee: TEAM[0],
     dueDate: null,
     createdDate: new Date().toISOString().slice(0, 10), // REQUIREMENTS 2.D
-    context: '',
+    context: CONTEXT_TEMPLATE, // REQUIREMENTS 5.B
     contextTool: null,
     contextUpdatedAt: null,
   };
@@ -37,10 +38,13 @@ export default function TaskModal({
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
-  // The context fields are not edited here (M9 owns them) but they live on
-  // `form`, so editing a task round-trips its briefing instead of wiping it.
   const [form, setForm] = useState<Task>(() => task ?? blankTask());
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // What the context started as, so saving only re-stamps it when it actually
+  // changed (5.D). Derived from props — blankTask() always seeds the template.
+  const originalContext = task ? task.context : CONTEXT_TEMPLATE;
+  const updatedHint = form.contextUpdatedAt && relativeTime(form.contextUpdatedAt);
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -51,12 +55,16 @@ export default function TaskModal({
       ref={dialogRef}
       aria-labelledby="task-modal-title"
       onClose={onClose}
-      className="m-auto w-full max-w-lg rounded-xl border border-gray-200 bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      className="m-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          onSave(form);
+          onSave(
+            form.context === originalContext
+              ? form
+              : { ...form, contextUpdatedAt: new Date().toISOString() } // 5.D
+          );
         }}
       >
         {/* Same accent as the card, live-updating with the Type select (3.A). */}
@@ -175,7 +183,48 @@ export default function TaskModal({
           </div>
         </div>
 
-        {/* TODO M9 task-context: Context textarea + AI Tool dropdown + "last updated" hint. */}
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <label className={LABEL} htmlFor="task-context">
+              Context (Markdown)
+            </label>
+            {updatedHint && (
+              <span className="mb-1 text-xs text-text-muted">Last updated {updatedHint}</span>
+            )}
+          </div>
+          {/* Monospace because it is Markdown being written for a model to read.
+              Tailwind's default mono stack — no extra webfont to download. */}
+          <textarea
+            id="task-context"
+            className={`${FIELD} font-mono`}
+            rows={8}
+            value={form.context}
+            onChange={(event) => setForm({ ...form, context: event.target.value })}
+          />
+        </div>
+
+        <div className="mt-3 w-48">
+          <label className={LABEL} htmlFor="task-tool">
+            AI Tool
+          </label>
+          <select
+            id="task-tool"
+            className={FIELD}
+            value={form.contextTool ?? ''}
+            onChange={(event) =>
+              setForm({ ...form, contextTool: (event.target.value || null) as AITool })
+            }
+          >
+            <option value="">Not recorded</option>
+            {AI_TOOLS.map((tool) => (
+              <option key={tool} value={tool}>
+                {tool}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* TODO M10 copy-context: "Copy as Prompt Context" button. */}
 
         <div className="mt-6 flex items-center justify-between">
           {task ? (
