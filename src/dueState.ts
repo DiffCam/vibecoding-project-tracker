@@ -13,7 +13,7 @@ function daysUntil(dueDate: string, today: Date): number {
   return Math.round((due - now) / 86_400_000);
 }
 
-/*** Modified to correct earlier tag commit
+/**
  * REQUIREMENTS 3.C — the due-date state of a task, plus the words for it.
  * Status 'done' overrides every other state (3.C.iv).
  *
