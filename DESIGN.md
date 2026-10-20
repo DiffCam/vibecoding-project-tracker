@@ -98,7 +98,7 @@ Three lines of microcopy that capture the tone of the product. Keep it short —
 The tracker probably doesn't need a logo, but it does need a name and a wordmark style.
 
 - **Product name:** `VibeCheck` (match PRD §11 team identity)
-- **Wordmark style:** `Just the name in the Inter heading font using text-primary, with "DiffCam" in semibold and "Tracker" in regular weight. No icon.` (e.g. "Just the name in the heading font, brand-primary color, no icon.")
+- **Wordmark style:** `Just the name in the Inter heading font using text-primary, with "VibeCheck" in semibold and "Tracker" in regular weight. No icon.` (e.g. "Just the name in the heading font, brand-primary color, no icon.")
 
 ## 7. Out of scope (this hackathon)
 
