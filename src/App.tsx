@@ -49,7 +49,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  function open(target: Task | 'new', opener: HTMLElement) {
+  function open(target: Task | 'new', opener: HTMLElement | null) {
     openerRef.current = opener;
     setEditing(target);
   }
@@ -239,7 +239,7 @@ export default function App() {
 
       <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
 
-      <DrivingStrip tasks={tasks} team={team} />
+      <DrivingStrip tasks={tasks} team={team} onOpenTask={open} />
 
       <p className="mb-2 text-xs text-text-muted">
         Tap <kbd className="font-mono">{MODIFIER_LABEL}</kbd> to jump to the board · ← → ↑ ↓ to

@@ -11,10 +11,12 @@ import type { Task } from '../types';
 export default function MemberTasksDialog({
   member,
   tasks,
+  onOpenTask,
   onClose,
 }: {
   member: string;
   tasks: Task[];
+  onOpenTask: (task: Task) => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -44,20 +46,26 @@ export default function MemberTasksDialog({
           const stage = STAGES.find((option) => option.id === task.status);
 
           return (
-            <li key={task.id} className="rounded-lg border border-line px-3 py-2">
-              <p className="text-sm text-text-primary">{task.title}</p>
-              <p className="mt-1 flex items-center gap-2 text-xs text-text-muted">
-                {stage?.label}
-                {due.state === 'none' ? (
-                  <span>· {due.label}</span>
-                ) : (
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-medium text-ink ${DUE_FILL[due.state]}`}
-                  >
-                    {due.label}
-                  </span>
-                )}
-              </p>
+            <li key={task.id} className="rounded-lg border border-line hover:border-brand-primary">
+              <button
+                type="button"
+                onClick={() => onOpenTask(task)}
+                className="w-full px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              >
+                <span className="block text-sm text-text-primary">{task.title}</span>
+                <span className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+                  {stage?.label}
+                  {due.state === 'none' ? (
+                    <span>· {due.label}</span>
+                  ) : (
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-medium text-ink ${DUE_FILL[due.state]}`}
+                    >
+                      {due.label}
+                    </span>
+                  )}
+                </span>
+              </button>
             </li>
           );
         })}
