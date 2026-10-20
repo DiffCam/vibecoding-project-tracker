@@ -1,0 +1,105 @@
+
+# Notes
+
+- A tool to help monitor your own vibecoding projects through every stage, intent to ship
+- Starter repo -> deployed tool to use in final project
+- Add, edit, move and complete vibecoding tasks on a kanban board
+- Anchor prompts: Store prompt + AI tool + outcome for every task
+- Out of one repo, one demo, one pitch (in 3 hrs!)
+- MVP scope important
+- Every task has sub-requirements / context
+    - In task, store context for task
+- M1: Fork + dash: git-linked
+    - Connect team repo to hackathon portal
+    - vc-hackathon-hub.vercel.app
+- M2: PRD reviewed: prd-done
+    - Product Requirement Document
+    - Skipped
+- M3: Design system: design-done
+    - Draft visual identify while rest of team reviews PRD (latter skipped)
+    - Design.md: 1 - one-sentence mood
+    - Pick colours in design.md: heading font, body font, monospace font
+    - Write #4 component principles (3-4 sentences) and #5 microcopy lines
+    - Paste hex values into tailwind.config.js so rest of team can use the tokens
+    - push tag design-done (git commit -m "design-done")
+- M4: Board + tasks: data-model
+    - Get kanban on screen
+    - A task = an object with id, title, description, type (feature / bug), status, assignee, due date, created date
+    - REnder board with To DO, In Progress, Review & Done
+    - Pre-populate three or four mock tasks so board is not empty on first load
+- M5: add / edit / delete tasks via modal: crud-modal
+    - A + button opens a modal with every field to fill
+    - Clicking a card opens the same modal in edit mode pre-filled
+    - Delete button removes the task
+    - Status dropdown, no drag and drop yet
+    - Persist everything to localStorage or shared backend
+- M6: feature vs bug visual distinction: tag-style
+    - Feature / bug have different accents
+    - Small icon in corner of each card
+    - Same colour scheme in board, modal, everywhere else
+- M7: Task owner: task-owner
+    - Show tas assignees initials / avatar
+    - Add hand off to dropdown
+    - Optional: Strip at top showing what each of the team members people is currently driving
+- M8 Time-based colour coding: due-tint
+    - Clear visual indicator for when tasks are due
+    - More than 2 days = calm
+    - less than 24 hours: warning
+    - past due: alarm
+    - done; neutral
+- M9: Task context field: task-context
+    - Add context section to the modal - Markdown
+    - Optional small AI Tool dropdown below it (claude, chatGPT, Cursor, lovable, replit, other)
+    - Save contextUpdatedAt timestamp automatically whenever field is edited
+    - Small "last updated 2h ago" hint near field
+    - Pre-fill new tasks with a placeholder template (background, constraints, tried so far, pick up)
+- M10: Copy context button: copy-context
+    - Button on each card labeled copy context
+- M11: Deliverable anchor board: project-deliverables
+    - 4 cards / elems pinned at top: Presentation, demo, report, documentation
+    - Each card has URL input field
+    - Each has status indicator (empty / filled dot) which changes when a link is added
+- M12: Make it unique: secret-sauce
+    - Create a unique value interaction that makes your tool different e.g.
+        - Drag cards across kanban to place them
+        - collapsable content
+        - sound for actions
+        - etc.
+- M13: Pitch: pitch-ready
+    - Pre-populate the board with demoable tasks
+    - At least one task with a prompt context filled for the demo
+    - Prepare your pitch
+
+# Q&A Answers
+
+- Extra features part of "secret sauce"
+    - Leave until core milestones finished
+- Multiple projects for a team / multiple teams?
+    - No - one project for one team first
+- Adding members to team needed
+- Acceptable fonts / themes / design reference?
+    - No
+- Accessibility important
+- Info stored about users?
+    - Name
+    - email for contact?
+    - Assuming relatively small teams
+- Target audience?
+    - Any SWE
+    - Architect
+    - Senior developer
+    - junior developer
+    - UX member
+    - Database creator
+- Colour accents set or user defined?
+    - Sensible default, user definable as bonus
+- Accessibility:
+    - Design + Code features
+- Technologies?
+    - As long as popular web framework used, no problem
+- CyberSec?
+    - Not important at this stage :/
+    - Login/Auth needed
+- Should be deployed (e.g. vercel)
+    - Not required for hackathon
+    - Is required for submission?!

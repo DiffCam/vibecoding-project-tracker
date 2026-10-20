@@ -1,14 +1,43 @@
+import { useRef, useState } from 'react';
 import { STAGES } from './constants';
 import { SEED_TASKS } from './seedTasks';
 import TaskCard from './components/TaskCard';
+import TaskModal from './components/TaskModal';
 import { useLocalStorage } from './useLocalStorage';
 import type { Task } from './types';
 
 export default function App() {
-  const [tasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
+  const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
+  const [editing, setEditing] = useState<Task | 'new' | null>(null);
 
-  // TODO M5 crud-modal: const [editing, setEditing] = useState<Task | null>(null);
-  // TODO M11 anchors:   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', ...);
+  // The element that opened the modal, so focus can go back to it on close (8.C).
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  // TODO M11 anchors: const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', ...);
+
+  function open(target: Task | 'new', opener: HTMLElement) {
+    openerRef.current = opener;
+    setEditing(target);
+  }
+
+  function close() {
+    setEditing(null);
+    openerRef.current?.focus();
+  }
+
+  function save(task: Task) {
+    setTasks((prev) =>
+      prev.some((existing) => existing.id === task.id)
+        ? prev.map((existing) => (existing.id === task.id ? task : existing))
+        : [...prev, task]
+    );
+    close();
+  }
+
+  function remove(id: string) {
+    setTasks((prev) => prev.filter((task) => task.id !== id));
+    close();
+  }
 
   return (
     <div className="min-h-screen bg-surface-page p-6 font-sans">
@@ -20,6 +49,14 @@ export default function App() {
           </h1>
           <p className="text-sm text-text-muted">DiffCam · Developer Development</p>
         </div>
+
+        <button
+          type="button"
+          onClick={(event) => open('new', event.currentTarget)}
+          className="rounded-full bg-brand-primary px-5 py-2 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+        >
+          New Task
+        </button>
       </header>
 
       {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
@@ -44,7 +81,7 @@ export default function App() {
                 <ul className="space-y-3">
                   {stageTasks.map((task) => (
                     <li key={task.id}>
-                      <TaskCard task={task} />
+                      <TaskCard task={task} onOpen={(opener) => open(task, opener)} />
                     </li>
                   ))}
                 </ul>
@@ -53,6 +90,15 @@ export default function App() {
           );
         })}
       </main>
+
+      {editing !== null && (
+        <TaskModal
+          task={editing === 'new' ? null : editing}
+          onSave={save}
+          onDelete={remove}
+          onClose={close}
+        />
+      )}
     </div>
   );
 }
