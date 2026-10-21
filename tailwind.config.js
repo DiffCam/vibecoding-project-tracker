@@ -24,6 +24,8 @@ export default {
           chrome: token('surface-chrome'),
           sunken: token('surface-sunken'),
           'sunken-alt': token('surface-sunken-alt'),
+          list: token('surface-list'),
+          pill: token('surface-pill'),
         },
         text: {
           primary: token('text-primary'),
@@ -36,6 +38,12 @@ export default {
         type: {
           feature: token('type-feature'),
           bug: token('type-bug'),
+        },
+        status: {
+          todo: token('status-todo'),
+          progress: token('status-progress'),
+          review: token('status-review'),
+          done: token('status-done'),
         },
         due: {
           safe: token('due-safe'),

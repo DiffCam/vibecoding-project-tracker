@@ -23,14 +23,34 @@
      that should read as sunken rather than raised (deliverable slots, team
      chips). Both sit below the page so cards stay the lightest thing. */
   --surface-sunken: 220 220 225;     /* #DCDCE1 */
+  /* The expanded task list and the pills on it. Separate tokens rather than
+     reusing chrome/sunken because the relationship inverts: in light the card
+     is the brightest thing and the pill sits above the list, in dark the pill
+     recedes below it. The hairline is what reads in both cases. */
+  --surface-list: 220 220 225;       /* #DCDCE1 */
+  --surface-pill: 250 250 252;       /* #FAFAFC — above the list */
   --surface-sunken-alt: 208 208 214; /* #D0D0D6 */
   --surface-chrome: 250 250 252; /* #FAFAFC — brighter than the content area:
                                    a toolbar over the page, not a grey band */
   --ink: 29 29 31;              /* #1D1D1F — see note in the dark block */
-  --type-feature: 52 199 89;    /* #34C759 */
-  --type-bug: 255 149 0;        /* #FF9500 */
+  /* Fixed in both themes: these are fills behind a white glyph, not text.
+     White needs 4.5:1 and gets 6.98 / 5.18 here; on the old #34C759 it was
+     2.20:1, which is why the square could not simply take a white icon. */
+  --type-feature: 126 34 206;   /* #7E22CE */
+  --type-bug: 194 65 12;        /* #C2410C */
+  /* Status dots — the implied key between a lane title and a task pill.
+     Chosen for distinction from EACH OTHER, not just from the background: at
+     6px chroma washes out, so the first set (grey/blue/teal/green) read as
+     four dark smudges — three cool hues with an L* spread of 11. Neutral,
+     cool, warm, green gives a minimum pairwise ΔE of 58 against 31 before,
+     while every one still clears 3:1 on each surface it lands on. */
+  --status-todo: 107 114 128;   /* #6B7280 */
+  --status-progress: 37 99 235; /* #2563EB */
+  --status-review: 161 98 7;    /* #A16207 */
+  --status-done: 21 128 61;     /* #15803D */
   --due-safe: 52 199 89;        /* #34C759 */
-  --due-warning: 255 204 0;     /* #FFCC00 */
+  --due-warning: 255 149 0;     /* #FF9500 — orange, not DESIGN.md's #FFCC00:
+                                   the rail band is now "within two days" */
   --due-overdue: 215 0 21;      /* #D70015 — deeper than DESIGN.md's #FF3B30 so
                                    white sits on it at 5.4:1 instead of 3.6:1 */
 }
@@ -46,6 +66,12 @@
   --text-muted: 174 174 178;    /* #AEAEB2 */
   --line: 72 72 74;             /* #48484A */
   --surface-sunken: 23 23 25;        /* #171719 */
+  --surface-list: 36 36 40;          /* #242428 — above the near-black card. Lifted
+                                        further than the card/list step alone would
+                                        want, because the pill's hairline now does
+                                        the work of separating pill from list. */
+  --surface-pill: 23 23 25;          /* #171719 — below the list, 1.16 apart,
+                                        with a 1.96 hairline around it */
   /* The deep lane is literally the header tone, so the chrome, the alternating
      lanes and the recessed panels are all one colour. Aliased rather than
      copied so tweaking the header keeps them in step. */
@@ -58,10 +84,17 @@
      bright in both themes. Flipping it to white would drop the yellow pill to
      1.30:1. Dark ink keeps all three pills above 4.9:1 either way. */
   --ink: 29 29 31;              /* #1D1D1F */
-  --type-feature: 48 209 88;    /* #30D158 */
-  --type-bug: 255 159 10;       /* #FF9F0A */
+  --type-feature: 126 34 206;   /* #7E22CE — see light block */
+  --type-bug: 194 65 12;        /* #C2410C */
+  /* Lifted for a dark surface — the light values would vanish on it. The
+     neutral goes lighter still to pull it away from the blue: ΔE 53 against
+     39 for the previous teal-and-green pairing. */
+  --status-todo: 214 211 209;   /* #D6D3D1 */
+  --status-progress: 96 165 250;/* #60A5FA */
+  --status-review: 251 191 36;  /* #FBBF24 */
+  --status-done: 74 222 128;    /* #4ADE80 */
   --due-safe: 48 209 88;        /* #30D158 */
-  --due-warning: 255 214 10;    /* #FFD60A */
+  --due-warning: 255 159 10;    /* #FF9F0A */
   --due-overdue: 215 0 21;      /* #D70015 — see light block */
 }
 

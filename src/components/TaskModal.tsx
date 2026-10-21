@@ -3,7 +3,8 @@ import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TYPE_ACCENT } from '../constants';
 import { relativeTime } from '../relativeTime';
 import TypeIcon from './TypeIcon';
 import { colorFor, TAG_INK } from '../tagColor';
-import type { AITool, Milestone, Task, TaskStatus, TaskType } from '../types';
+import { sprintEnd, sprintNumbers, sprintsForMilestone } from '../sprints';
+import type { AITool, Milestone, Sprint, Task, TaskStatus, TaskType, TeamMember } from '../types';
 
 // Native <dialog> + showModal() so the focus trap, Escape-to-close, inert
 // background and backdrop all come from the platform instead of our code.
@@ -12,14 +13,14 @@ const FIELD =
   'w-full rounded-lg border border-line bg-surface-card px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 const LABEL = 'block text-xs text-text-muted mb-1';
 
-function blankTask(team: string[], defaults: NewTaskDefaults): Task {
+function blankTask(team: TeamMember[], defaults: NewTaskDefaults): Task {
   return {
     id: crypto.randomUUID(),
     title: '',
     description: '',
     type: 'feature',
     status: defaults.status ?? 'todo',
-    assignee: defaults.assignee ?? team[0],
+    assignee: defaults.assignee ?? team[0]?.name ?? '',
     dueDate: null,
     createdDate: new Date().toISOString().slice(0, 10), // REQUIREMENTS 2.D
     context: CONTEXT_TEMPLATE, // REQUIREMENTS 5.B
@@ -27,6 +28,7 @@ function blankTask(team: string[], defaults: NewTaskDefaults): Task {
     contextUpdatedAt: null,
     milestoneId: defaults.milestoneId ?? null,
     tags: [],
+    sprintId: defaults.sprintId ?? null,
   };
 }
 
@@ -34,12 +36,14 @@ export type NewTaskDefaults = {
   status?: TaskStatus;
   assignee?: string;
   milestoneId?: string | null;
+  sprintId?: string | null;
 };
 
 export default function TaskModal({
   task,
   team,
   milestones,
+  sprints,
   allTags,
   tagColors,
   defaults,
@@ -48,8 +52,9 @@ export default function TaskModal({
   onClose,
 }: {
   task: Task | null; // null = create mode
-  team: string[];
+  team: TeamMember[];
   milestones: Milestone[];
+  sprints: Sprint[];
   allTags: string[];
   tagColors: Record<string, string>;
   /** Pre-selections when creating: the lane or the teammate you came from. */
@@ -92,12 +97,16 @@ export default function TaskModal({
           id="task-modal-title"
           className="mb-4 flex items-center gap-2 text-base font-semibold text-text-primary"
         >
-          <TypeIcon
-            type={form.type}
-            className={`h-4 w-4 shrink-0 ${TYPE_ACCENT[form.type].text}`}
-          />
+          {/* The same filled square the card uses. These hues are picked for a
+              white glyph on them, so they cannot double as text colours. */}
+          <span
+            aria-hidden="true"
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded ${TYPE_ACCENT[form.type].fill}`}
+          >
+            <TypeIcon type={form.type} className="h-4 w-4 text-white" />
+          </span>
           {task ? 'Edit Task' : 'New Task'}
-          <span className={`text-sm font-normal ${TYPE_ACCENT[form.type].text}`}>
+          <span className="text-sm font-normal text-text-muted">
             · {TYPE_ACCENT[form.type].label}
           </span>
         </h2>
@@ -181,12 +190,12 @@ export default function TaskModal({
                 {/* An assignee no longer on the team (hand-edited storage, or
                     data from an older roster) would otherwise render as blank
                     and be silently rewritten on save. Show the truth instead. */}
-                {!team.includes(form.assignee) && (
+                {!team.some((member) => member.name === form.assignee) && (
                   <option value={form.assignee}>{form.assignee} (not on the team)</option>
                 )}
                 {team.map((member) => (
-                  <option key={member} value={member}>
-                    {member}
+                  <option key={member.name} value={member.name}>
+                    {member.name}
                   </option>
                 ))}
               </select>
@@ -208,6 +217,29 @@ export default function TaskModal({
                 {milestones.map((milestone) => (
                   <option key={milestone.id} value={milestone.id}>
                     {milestone.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={LABEL} htmlFor="task-sprint">
+                Sprint
+              </label>
+              <select
+                id="task-sprint"
+                className={FIELD}
+                value={form.sprintId ?? ''}
+                onChange={(event) =>
+                  setForm({ ...form, sprintId: event.target.value || null })
+                }
+              >
+                <option value="">Unscheduled</option>
+                {/* Only sprints this task's milestone can see. */}
+                {sprintsForMilestone(sprints, form.milestoneId).map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>
+                    Sprint {sprintNumbers(sprints)[sprint.id]} · {sprint.startDate} →{' '}
+                    {sprintEnd(sprint)}
                   </option>
                 ))}
               </select>

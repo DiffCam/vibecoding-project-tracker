@@ -12,11 +12,14 @@ import { useLocalStorage } from '../useLocalStorage';
 export default function CollapsibleSection({
   id,
   title,
+  action,
   meta,
   children,
 }: {
   id: string;
   title: string;
+  /** Sits immediately right of the title — for a control that belongs to it. */
+  action?: ReactNode;
   meta?: ReactNode;
   children: ReactNode;
 }) {
@@ -27,6 +30,7 @@ export default function CollapsibleSection({
   return (
     <section aria-labelledby={headingId}>
       <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={() => setOpen(!open)}
@@ -52,6 +56,9 @@ export default function CollapsibleSection({
             {title}
           </h2>
         </button>
+
+          {action}
+        </div>
 
         {meta && <p className="font-mono text-xs text-text-muted">{meta}</p>}
       </div>

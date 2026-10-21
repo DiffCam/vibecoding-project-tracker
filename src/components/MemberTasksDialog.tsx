@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { DUE_PILL, STAGES } from '../constants';
+import { DUE_PILL, STAGES, STATUS_DOT } from '../constants';
 import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
 import type { Task } from '../types';
@@ -11,11 +11,13 @@ import type { Task } from '../types';
 export default function MemberTasksDialog({
   member,
   tasks,
+  accent,
   onOpenTask,
   onClose,
 }: {
   member: string;
   tasks: Task[];
+  accent?: string;
   onOpenTask: (task: Task) => void;
   onClose: () => void;
 }) {
@@ -30,17 +32,17 @@ export default function MemberTasksDialog({
       ref={dialogRef}
       aria-labelledby="member-tasks-title"
       onClose={onClose}
-      className="m-auto max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-line bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      className="m-auto flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-line bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
       <h2
         id="member-tasks-title"
         className="mb-4 flex items-center gap-2 text-base font-semibold text-text-primary"
       >
-        <Avatar name={member} />
-        {member} is driving {tasks.length}
+        <Avatar name={member} accent={accent} />
+        {member} · {tasks.filter((task) => task.status !== 'done').length} active
       </h2>
 
-      <ul className="space-y-2">
+      <ul className="-mx-1 min-h-0 flex-1 space-y-2 overflow-y-auto px-1">
         {tasks.map((task) => {
           const due = dueBadge(task);
           const stage = STAGES.find((option) => option.id === task.status);
@@ -54,6 +56,11 @@ export default function MemberTasksDialog({
               >
                 <span className="block text-sm text-text-primary">{task.title}</span>
                 <span className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+                  {/* Same key as the lane titles and the chip pills. */}
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[task.status]}`}
+                  />
                   {stage?.label}
                   {due.state === 'none' ? (
                     <span>· {due.label}</span>

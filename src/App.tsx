@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 // window-level listeners below.
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { locate, navigate } from './boardNavigation';
-import { DEFAULT_TEAM, SEED_ANCHORS, STAGES } from './constants';
+import { DEFAULT_TEAM, SEED_ANCHORS, STAGES, STATUS_DOT } from './constants';
 import { SEED_TASKS } from './seedTasks';
 import AnchorBoard from './components/AnchorBoard';
 import ConfirmDialog from './components/ConfirmDialog';
@@ -17,18 +17,20 @@ import TagsDialog from './components/TagsDialog';
 import TaskModal from './components/TaskModal';
 import type { NewTaskDefaults } from './components/TaskModal';
 import SearchDialog, { FilterTag } from './components/SearchDialog';
+import SprintForm from './components/SprintForm';
+import SprintsRow from './components/SprintsRow';
 import ShortcutOverlay from './components/ShortcutOverlay';
 import TeamDialog from './components/TeamDialog';
 import ThemeToggle from './components/ThemeToggle';
 import { toPromptContext } from './promptContext';
-import { resolveTagColors } from './tagColor';
+import { assignColors, resolveTagColors } from './tagColor';
 import { addFilter, matchesFilters } from './taskFilter';
 import type { Filter, FilterField } from './taskFilter';
 import { useCardDrag } from './useCardDrag';
 import { useFlip } from './useFlip';
 import { useLocalStorage } from './useLocalStorage';
 import { isTyping, MODIFIER_LABEL, useModifierKey } from './useModifierKey';
-import type { Anchor, Milestone, Task, TaskStatus } from './types';
+import type { Anchor, Milestone, Sprint, Task, TaskStatus, TeamMember } from './types';
 
 /** Lanes alternate between the two recessed tones. */
 const laneTone = (index: number) =>
@@ -68,14 +70,15 @@ function Enter({
 }
 
 export default function App() {
-  // Tasks saved before `tags` and `milestoneId` existed come back without
-  // them. Filled in once here so every consumer can trust the type, rather
-  // than each one coalescing defensively and one of them forgetting.
+  // Tasks saved before `tags`, `milestoneId` or `sprintId` existed come back
+  // without them. Filled in once here so every consumer can trust the type,
+  // rather than each one coalescing defensively and one of them forgetting.
   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS, (stored) =>
     stored.map((task) => ({
       ...task,
       tags: task.tags ?? [],
       milestoneId: task.milestoneId ?? null,
+      sprintId: task.sprintId ?? null,
     }))
   );
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
@@ -105,7 +108,13 @@ export default function App() {
   const openerRef = useRef<HTMLElement | null>(null);
 
   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', SEED_ANCHORS);
-  const [team, setTeam] = useLocalStorage<string[]>('vibetracker.team', DEFAULT_TEAM);
+  // Rosters saved before members had a GitHub handle are plain strings. Third
+  // shape change today, so it gets a reviver rather than defensive reads.
+  const [team, setTeam] = useLocalStorage<TeamMember[]>('vibetracker.team', DEFAULT_TEAM, (stored) =>
+    stored.map((member) =>
+      typeof member === 'string' ? { name: member as string } : member
+    )
+  );
   const [allTags, setAllTags] = useLocalStorage<string[]>('vibetracker.tags', [
     'VIP',
     'System:Clipboard',
@@ -117,13 +126,27 @@ export default function App() {
     {}
   );
   const tagColors = resolveTagColors(allTags, chosenColors);
+  const [chosenMemberColors, setChosenMemberColors] = useLocalStorage<Record<string, string>>(
+    'vibetracker.memberColors',
+    {}
+  );
   const [milestones, setMilestones] = useLocalStorage<Milestone[]>(
     'vibetracker.milestones',
     []
   );
+  const [sprints, setSprints] = useLocalStorage<Sprint[]>('vibetracker.sprints', []);
+
   // Which tab is open is a view, not data — it resets to All on reload rather
-  // than landing you on a near-empty board with no memory of why.
+  // than landing you on a near-empty board with no memory of why. Same for the
+  // selected sprint.
   const [activeMilestone, setActiveMilestone] = useState<string | null>(null);
+  const [activeSprint, setActiveSprint] = useState<string | null>(null);
+  const [editingSprint, setEditingSprint] = useState<Sprint | 'new' | null>(null);
+
+  const memberColors = assignColors(
+    team.map((member) => member.name),
+    chosenMemberColors
+  );
 
   // First visit follows the OS; after that the stored choice wins.
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>(
@@ -190,7 +213,7 @@ export default function App() {
   ) {
     openerRef.current = opener;
     // Create inside whichever milestone is open, unless told otherwise.
-    setNewDefaults({ milestoneId: activeMilestone, ...defaults });
+    setNewDefaults({ milestoneId: activeMilestone, sprintId: activeSprint, ...defaults });
     setEditing(target);
   }
 
@@ -251,7 +274,8 @@ export default function App() {
     (task) =>
       matchesFilters(task, filters, milestoneName(task)) &&
       // Tasks stored before milestones existed read back as undefined.
-      (activeMilestone === null || (task.milestoneId ?? null) === activeMilestone)
+      (activeMilestone === null || (task.milestoneId ?? null) === activeMilestone) &&
+      (activeSprint === null || (task.sprintId ?? null) === activeSprint)
   );
 
   function focusCard(id: string) {
@@ -422,7 +446,7 @@ export default function App() {
               <div className="anim-slide">
                 <h1 className="text-2xl leading-8 text-text-primary">
                   <span className="font-semibold">Vibe</span>
-                  <span className="font-normal">Check</span>
+                  <span className="font-normal">Checkr</span>
                 </h1>
                 <p className="font-mono text-xs leading-4 text-text-muted">
                   <i>Track Vibes</i>; <b>Ship Value</b>.
@@ -486,6 +510,7 @@ export default function App() {
             team={team}
             onOpenTask={open}
             onNewTask={(assignee, opener) => open('new', opener, { assignee })}
+            memberColors={memberColors}
           />
         </Enter>
 
@@ -557,7 +582,18 @@ export default function App() {
           <MilestoneTabs
             milestones={milestones}
             activeId={activeMilestone}
-            onSelect={setActiveMilestone}
+            onSelect={(id) => {
+              setActiveMilestone(id);
+              // Do not leave the board filtered by a sprint this tab hides.
+              const stillShown =
+                activeSprint === null ||
+                sprints.some(
+                  (sprint) =>
+                    sprint.id === activeSprint &&
+                    (id === null || sprint.milestoneId === id || sprint.milestoneId === null)
+                );
+              if (!stillShown) setActiveSprint(null);
+            }}
             onAdd={(name) => {
               const milestone = { id: crypto.randomUUID(), name };
               setMilestones((prev) => [...prev, milestone]);
@@ -575,22 +611,42 @@ export default function App() {
             }
           />
 
-          <div
-            ref={boardRef}
-            onKeyDown={onBoardKeyDown}
-            onBlur={(event) => {
-              // Tabbing out of the board places the carried card, same as
-              // clicking away. relatedTarget is null when the node is merely
-              // being re-rendered mid-carry, and that must not count as
-              // leaving; the effect above refocuses it.
-              const next = event.relatedTarget as Node | null;
-              if (grabbed && next && !event.currentTarget.contains(next)) placeGrabbed(grabbed);
-            }}
-            // Lanes butt together with no gap and no borders: alternating
-            // bands, so a lane never reads as a big version of the cards
-            // inside it. Rounding lives on the board, not each lane.
-            className="grid grid-cols-4 overflow-hidden rounded-b-xl"
-          >
+          {/* The rounding and clipping move out to a wrapper so the sprints
+              row sits inside the board's shape rather than above it. Top-left
+              stays square so the active milestone tab can meet it flush. */}
+          <div className="overflow-hidden rounded-b-xl rounded-tr-xl">
+            {/* Sprints: a full-width band across the top of the board. Shares
+                the lighter lane tone so it reads as part of the board, with a
+                page-coloured hairline as the only thing dividing it from the
+                lane headers below. */}
+            <SprintsRow
+              sprints={sprints}
+              milestones={milestones}
+              activeMilestone={activeMilestone}
+              activeSprint={activeSprint}
+              onSelect={setActiveSprint}
+              onAdd={() => setEditingSprint('new')}
+              onEdit={setEditingSprint}
+            />
+
+            <div
+              ref={boardRef}
+              onKeyDown={onBoardKeyDown}
+              onBlur={(event) => {
+                // Tabbing out of the board places the carried card, same as
+                // clicking away. relatedTarget is null when the node is merely
+                // being re-rendered mid-carry, and that must not count as
+                // leaving; the effect above refocuses it.
+                const next = event.relatedTarget as Node | null;
+                if (grabbed && next && !event.currentTarget.contains(next)) {
+                  placeGrabbed(grabbed);
+                }
+              }}
+              // Lanes butt together with no gap and no borders: alternating
+              // bands, so a lane never reads as a big version of the cards
+              // inside it.
+              className="grid grid-cols-4"
+            >
             {STAGES.map((stage, index) => {
               const stageTasks = visibleTasks.filter((task) => statusOf(task) === stage.id);
               const headingId = `column-${stage.id}`;
@@ -631,6 +687,12 @@ export default function App() {
                       id={headingId}
                       className="flex items-center gap-2 text-base font-semibold uppercase text-text-primary"
                     >
+                      {/* The key: this dot is the same one the team chips and
+                          their task pills use. */}
+                      <span
+                        aria-hidden="true"
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_DOT[stage.id]}`}
+                      />
                       {stage.label}
                       <span className="rounded-full bg-surface-page px-2 py-0.5 font-mono text-xs font-normal text-text-muted">
                         {stageTasks.length}
@@ -694,6 +756,7 @@ export default function App() {
                 </section>
               );
             })}
+            </div>
           </div>
         </section>
         </Enter>
@@ -704,6 +767,7 @@ export default function App() {
           task={editing === 'new' ? null : editing}
           team={team}
           milestones={milestones}
+          sprints={sprints}
           allTags={allTags}
           tagColors={tagColors}
           defaults={newDefaults}
@@ -751,6 +815,33 @@ export default function App() {
         />
       )}
 
+      {editingSprint !== null && (
+        <SprintForm
+          sprint={editingSprint === 'new' ? null : editingSprint}
+          milestones={milestones}
+          defaultMilestoneId={activeMilestone}
+          onSave={(sprint) => {
+            setSprints((prev) =>
+              prev.some((existing) => existing.id === sprint.id)
+                ? prev.map((existing) => (existing.id === sprint.id ? sprint : existing))
+                : [...prev, sprint]
+            );
+            setEditingSprint(null);
+          }}
+          onDelete={(id) => {
+            setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
+            // Tasks survive; they just stop being scheduled.
+            setTasks((prev) =>
+              prev.map((task) => (task.sprintId === id ? { ...task, sprintId: null } : task))
+            );
+            if (activeSprint === id) setActiveSprint(null);
+            setEditingSprint(null);
+            setToast('Sprint deleted.');
+          }}
+          onClose={() => setEditingSprint(null)}
+        />
+      )}
+
       {showShortcuts && <ShortcutOverlay />}
 
       {showSearch && (
@@ -768,6 +859,15 @@ export default function App() {
         <TeamDialog
           team={team}
           tasks={tasks}
+          colors={memberColors}
+          onPickColor={(name, colour) =>
+            setChosenMemberColors((prev) => {
+              const next = { ...prev };
+              if (colour === null) delete next[name];
+              else next[name] = colour;
+              return next;
+            })
+          }
           onChange={setTeam}
           onClose={() => setShowTeam(false)}
         />

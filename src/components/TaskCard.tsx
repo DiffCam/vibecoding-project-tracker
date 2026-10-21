@@ -1,19 +1,13 @@
 import { DUE_PILL, TYPE_ACCENT } from '../constants';
-import { dueBadge } from '../dueState';
+import { dueCountdown, dueState } from '../dueState';
 import Avatar from './Avatar';
+import Icon from './Icon';
+import Logo from './Logo';
 import { TagChip } from './TagsDialog';
 import TypeIcon from './TypeIcon';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Task } from '../types';
 
-// Flat, 1px border, no shadow — DESIGN.md §4. The type accent is a stripe child
-// rather than a border utility so it cannot fight the card's 1px gray border.
-//
-// The card is a <div>, not a <button>: it now holds two actions, and a Copy
-// button nested inside an outer button is invalid HTML and unreachable by
-// keyboard. Instead the title is the button and its ::after is stretched over
-// the whole card, so clicking anywhere still opens the task (8.B) while Copy
-// stays a separate, separately-focusable control above it.
 // Two keyboard states, deliberately different shapes so they are never confused:
 // a dashed outline means "the cursor is here", solid + lifted means "in hand".
 // Driven by React state rather than :focus-visible, which only matches when the
@@ -27,6 +21,18 @@ const SELECTION = {
     'z-10 -translate-y-1 rotate-[-0.75deg] shadow-xl outline-2 outline-offset-2 outline-brand-primary',
 } as const;
 
+/**
+ * The card is a <div>, not a <button>: it holds several actions, and a button
+ * nested inside an outer button is invalid HTML and unreachable by keyboard.
+ * The title is the button and its ::after is stretched over the whole card, so
+ * clicking anywhere still opens the task (8.B) while the other controls stay
+ * separately focusable above it.
+ *
+ * The left rail does the work the old type stripe did and more: a type square
+ * on top, then the time left until due, coloured by how close that is. Filled
+ * rather than coloured text, because #34C759 on the card surface is 2.04:1 —
+ * these colours only clear AA as a background.
+ */
 export default function TaskCard({
   task,
   onOpen,
@@ -52,7 +58,8 @@ export default function TaskCard({
   isOverlay?: boolean;
 }) {
   const accent = TYPE_ACCENT[task.type];
-  const due = dueBadge(task);
+  const state = dueState(task);
+  const countdown = dueCountdown(task);
 
   return (
     <div
@@ -61,11 +68,45 @@ export default function TaskCard({
         isOverlay ? 'cursor-grabbing shadow-2xl' : 'cursor-grab hover:border-brand-primary'
       } ${isDragging ? 'invisible' : ''} ${selection ? SELECTION[selection] : ''}`}
     >
-      <span className={`w-1 shrink-0 ${accent.stripe}`} aria-hidden="true" />
+      {/* Flush to the card's edge with no padding or gap — the card's own
+          overflow-hidden clips them to its rounded corners. */}
+      <div className="flex w-7 shrink-0 flex-col">
+        <span
+          aria-hidden="true"
+          className={`flex h-7 shrink-0 items-center justify-center ${accent.fill}`}
+        >
+          <TypeIcon type={task.type} className="h-4 w-4 text-white" />
+        </span>
 
-      <div className="min-w-0 flex-1 p-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="min-w-0 text-sm font-medium text-text-primary">
+        {task.status === 'done' ? (
+          // Done has no countdown left to run, so the rail says so with the
+          // wordmark's own checkmark on a neutral bar.
+          <span
+            aria-hidden="true"
+            className="flex flex-1 items-center justify-center bg-text-muted py-1.5 text-surface-card"
+          >
+            <Logo className="h-4 w-4" />
+          </span>
+        ) : (
+          countdown &&
+          state !== 'none' && (
+            // rotate-180 on top of vertical-rl makes it read bottom-to-top.
+            // leading-none keeps the glyph box tight, which is what sets the
+            // rail's width. Filled rather than coloured text: these hues only
+            // clear AA as a background.
+            <span
+              aria-hidden="true"
+              className={`flex flex-1 rotate-180 items-center justify-center py-1 text-xs font-medium leading-none [writing-mode:vertical-rl] ${DUE_PILL[state]}`}
+            >
+              {countdown}
+            </span>
+          )
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 p-2">
+        <div className="flex items-start gap-1.5">
+          <h3 className="min-w-0 flex-1 text-sm font-medium text-text-primary">
             <button
               type="button"
               data-card-id={task.id} // the board's arrow-key handler keys off this
@@ -79,10 +120,33 @@ export default function TaskCard({
               {task.title}
             </button>
           </h3>
-          {/* Icon + text, so the type is never conveyed by colour alone (NFR 3.B). */}
-          <TypeIcon type={task.type} className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${accent.text}`} />
-          <span className="sr-only">{accent.label}</span>
+
+          {/* relative z-10 lifts it above the title button's stretched ::after. */}
+          <button
+            type="button"
+            onClick={onCopy}
+            data-no-drag
+            aria-label={`Copy Context for ${task.title}`}
+            title="Copy as prompt context"
+            className="relative z-10 inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[11px] text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            <Icon name="copy" className="h-3 w-3 shrink-0" />
+            Context
+          </button>
+
+          <Avatar name={task.assignee} />
         </div>
+
+        {/* The rail is decorative, so its meaning is said here (NFR 3.B). */}
+        <span className="sr-only">
+          {accent.label}
+          {task.status === 'done'
+            ? ', done'
+            : countdown
+              ? `, ${state === 'overdue' ? 'overdue by' : 'due in'} ${countdown}`
+              : ''}
+          , assigned to {task.assignee}
+        </span>
 
         {task.description && (
           <p className="mt-1 line-clamp-2 text-sm text-text-muted">{task.description}</p>
@@ -95,53 +159,6 @@ export default function TaskCard({
             ))}
           </div>
         )}
-
-        {/* One footer row — due, copy, owner — over a rule, which is the
-            strongest single cue that a card has a body and a footer rather
-            than being one undifferentiated block. Wraps rather than
-            overflowing when a long "Overdue · date" leaves no room. */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-line pt-2">
-          {/* The urgency is in the words as much as the colour (NFR 3.B). */}
-          {due.state === 'none' ? (
-            <span className="text-xs text-text-muted">{due.label}</span>
-          ) : (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${DUE_PILL[due.state]}`}
-            >
-              {due.label}
-            </span>
-          )}
-
-          {/* relative z-10 lifts it above the title button's stretched ::after. */}
-          <button
-            type="button"
-            onClick={onCopy}
-            data-no-drag
-            aria-label={`Copy Context for ${task.title}`}
-            className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-xs text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-          >
-            {/* Lucide's copy glyph, hand-rolled to stay dependency-free like TypeIcon. */}
-            <svg
-              viewBox="0 0 24 24"
-              className="h-3 w-3 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="8" y="8" width="14" height="14" rx="2" />
-              <path d="M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2" />
-            </svg>
-            Copy Context
-          </button>
-
-          <span className="ml-auto flex items-center">
-            <Avatar name={task.assignee} />
-          </span>
-          <span className="sr-only">Assigned to {task.assignee}</span>
-        </div>
       </div>
     </div>
   );

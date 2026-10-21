@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import ColorPicker from './ColorPicker';
 import Icon from './Icon';
 import { groupTags, hasTag, normalizeTag, parseTag } from '../tags';
-import { colorFor, TAG_INK, TAG_PALETTE, tagColorKey } from '../tagColor';
+import { colorFor, TAG_INK, tagColorKey } from '../tagColor';
 
 /**
  * The tag library: create, review and remove the labels available to tasks.
@@ -166,44 +167,14 @@ export default function TagsDialog({
           ))}
 
           {picking !== null && (
-            <div className="rounded-lg bg-surface-page p-3">
-              <div className="mb-2 flex items-baseline justify-between">
-                <p className="font-mono text-xs text-text-muted">{picking}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPickColor(picking, null);
-                    setPicking(null);
-                  }}
-                  className="text-xs text-text-muted underline hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-                >
-                  Automatic
-                </button>
-              </div>
-              <ul className="flex flex-wrap gap-1.5">
-                {TAG_PALETTE.map((colour) => {
-                  const current = colors[picking] === colour;
-                  return (
-                    <li key={colour}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onPickColor(picking, colour);
-                          setPicking(null);
-                        }}
-                        aria-label={colour}
-                        aria-pressed={current}
-                        title={colour}
-                        style={{ backgroundColor: colour }}
-                        className={`h-6 w-6 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
-                          current ? 'ring-2 ring-text-primary ring-offset-2 ring-offset-surface-page' : ''
-                        }`}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <ColorPicker
+              label={picking}
+              current={colors[picking]}
+              onPick={(colour) => {
+                onPickColor(picking, colour);
+                setPicking(null);
+              }}
+            />
           )}
         </div>
       )}

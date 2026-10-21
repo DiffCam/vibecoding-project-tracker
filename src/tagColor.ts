@@ -60,7 +60,18 @@ export function resolveTagColors(
     const key = tagColorKey(tag);
     if (!keys.includes(key)) keys.push(key);
   }
+  return assignColors(keys, chosen);
+}
 
+/**
+ * Hands every key a colour: the one it was given, or the next unused one.
+ * Shared by tags and teammates so both behave the same way — a pick sticks,
+ * and automatic assignment never duplicates a pick.
+ */
+export function assignColors(
+  keys: string[],
+  chosen: Record<string, string> = {}
+): Record<string, string> {
   const taken = new Set(keys.map((key) => chosen[key]).filter(Boolean));
   const available = TAG_PALETTE.filter((colour) => !taken.has(colour));
 

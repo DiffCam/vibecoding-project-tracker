@@ -19,6 +19,7 @@ export const SEED_TASKS: Task[] = [
     contextUpdatedAt: null,
     milestoneId: null,
     tags: [],
+    sprintId: null,
   },
   {
     id: 'seed-2',
@@ -63,6 +64,7 @@ it cannot be hoisted into an effect.
     contextUpdatedAt: '2026-10-20T09:14:00.000Z',
     milestoneId: null,
     tags: ['VIP', 'System:Clipboard'],
+    sprintId: null,
   },
   {
     id: 'seed-3',
@@ -79,6 +81,7 @@ it cannot be hoisted into an effect.
     contextUpdatedAt: null,
     milestoneId: null,
     tags: ['System:Clipboard'],
+    sprintId: null,
   },
   {
     id: 'seed-4',
@@ -95,5 +98,6 @@ it cannot be hoisted into an effect.
     contextUpdatedAt: null,
     milestoneId: null,
     tags: [],
+    sprintId: null,
   },
 ];

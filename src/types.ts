@@ -26,6 +26,21 @@ export interface Task {
   milestoneId: string | null;
   /** Free-form labels, optionally grouped as "Group:Name". See src/tags.ts. */
   tags: string[];
+  /** Which sprint the task sits in; null is unscheduled. */
+  sprintId: string | null;
+}
+
+export interface Sprint {
+  id: string;
+  /** null keeps the sprint visible under every milestone tab. */
+  milestoneId: string | null;
+  startDate: string; // ISO 'YYYY-MM-DD'
+  days: number;
+}
+
+export interface TeamMember {
+  name: string; // the value stored in Task.assignee
+  github?: string;
 }
 
 export interface Milestone {
