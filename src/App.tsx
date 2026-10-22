@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 // Aliased: the bare name would shadow the DOM KeyboardEvent used by the
 // window-level listeners below.
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { locate, navigate } from './boardNavigation';
+import { carryTo, locate, navigate } from './boardNavigation';
 import { DEFAULT_TEAM, SEED_ANCHORS, STAGES, STATUS_DOT } from './constants';
 import { SEED_TASKS } from './seedTasks';
 import AnchorBoard from './components/AnchorBoard';
@@ -24,13 +24,24 @@ import TeamDialog from './components/TeamDialog';
 import ThemeToggle from './components/ThemeToggle';
 import { toPromptContext } from './promptContext';
 import { assignColors, resolveTagColors } from './tagColor';
+import {
+  orderSprints,
+  sprintNumbers,
+  sprintsForMilestone,
+  taskMilestone,
+  UNSCHEDULED,
+} from './sprints';
 import { addFilter, matchesFilters } from './taskFilter';
 import type { Filter, FilterField } from './taskFilter';
-import { useCardDrag } from './useCardDrag';
+import { CHIP_SCALE, useCardDrag } from './useCardDrag';
+import type { DropTarget } from './useCardDrag';
 import { useFlip } from './useFlip';
 import { useLocalStorage } from './useLocalStorage';
 import { isTyping, MODIFIER_LABEL, useModifierKey } from './useModifierKey';
 import type { Anchor, Milestone, Sprint, Task, TaskStatus, TeamMember } from './types';
+
+/** Breathing room between a carried card and the pill it is aimed at. */
+const CHIP_GAP = 6;
 
 /** Lanes alternate between the two recessed tones. */
 const laneTone = (index: number) =>
@@ -86,7 +97,7 @@ export default function App() {
   // `target` is where the carried card is hovering. Nothing is written to tasks
   // until it is placed, so the Driving strip and localStorage stay still while
   // a card is in the air, and Escape costs nothing to undo.
-  const [grabbed, setGrabbed] = useState<{ id: string; target: TaskStatus } | null>(null);
+  const [grabbed, setGrabbed] = useState<{ id: string; target: DropTarget } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showTeam, setShowTeam] = useState(false);
   const [newDefaults, setNewDefaults] = useState<NewTaskDefaults>({});
@@ -100,7 +111,7 @@ export default function App() {
   const boardRef = useRef<HTMLDivElement>(null);
   const newTaskRef = useRef<HTMLButtonElement>(null);
 
-  const { session: drag, overlayRef, bindCard } = useCardDrag(moveTask);
+  const { session: drag, overlayRef, bindCard } = useCardDrag(commitDrop);
   const draggedTask = drag ? tasks.find((task) => task.id === drag.taskId) : undefined;
   useFlip(boardRef);
 
@@ -135,6 +146,17 @@ export default function App() {
     []
   );
   const [sprints, setSprints] = useLocalStorage<Sprint[]>('vibetracker.sprints', []);
+  const [chosenSprintColors, setChosenSprintColors] = useLocalStorage<Record<string, string>>(
+    'vibetracker.sprintColors',
+    {}
+  );
+  // Same assigner as tags and teammates: automatic by order, overridable.
+  const sprintColors = assignColors(
+    orderSprints(sprints).map((sprint) => sprint.id),
+    chosenSprintColors
+  );
+  const sprintNos = sprintNumbers(sprints);
+  const [pendingSprintDelete, setPendingSprintDelete] = useState<Sprint | null>(null);
 
   // Which tab is open is a view, not data — it resets to All on reload rather
   // than landing you on a near-empty board with no memory of why. Same for the
@@ -213,7 +235,15 @@ export default function App() {
   ) {
     openerRef.current = opener;
     // Create inside whichever milestone is open, unless told otherwise.
-    setNewDefaults({ milestoneId: activeMilestone, sprintId: activeSprint, ...defaults });
+    setNewDefaults({
+      milestoneId: activeMilestone,
+      // UNSCHEDULED is a filter sentinel, not a sprint id. Storing it gave the
+      // new task a sprint that does not exist, which matched neither the "No
+      // sprint" filter nor any real sprint — so the task you had just created
+      // vanished from the board you created it on.
+      sprintId: activeSprint === UNSCHEDULED ? null : activeSprint,
+      ...defaults,
+    });
     setEditing(target);
   }
 
@@ -249,33 +279,50 @@ export default function App() {
     }
   }
 
-  // The one way a task changes column outside the modal — shared by drag-drop
-  // and the keyboard grab.
-  function moveTask(id: string, status: TaskStatus) {
+  // The one way a task changes outside the modal — shared by drag-drop and the
+  // keyboard carry. A lane sets status, a pill sets sprint; nothing else needs
+  // to know which input it came from.
+  //
+  // shortcut: a task holds one sprint, so dropping on a pill moves it out of
+  // any sprint it was already in. Revisit when tasks need to carry over.
+  function writeDrop(id: string, target: DropTarget) {
     setTasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, status } : task))
+      prev.map((task) =>
+        task.id !== id
+          ? task
+          : target.kind === 'status'
+            ? { ...task, status: target.id }
+            : { ...task, sprintId: target.id }
+      )
     );
   }
 
   // Where a card renders right now: its stored column, unless it is being
   // carried, in which case it follows the carry without the data changing.
   function statusOf(task: Task): TaskStatus {
-    if (grabbed?.id === task.id) return grabbed.target;
-    if (drag?.taskId === task.id && drag.over) return drag.over;
+    const carrying = grabbed?.id === task.id ? grabbed.target : null;
+    const dragging = drag?.taskId === task.id ? drag.over : null;
+    // Aiming at a sprint pill leaves the card in its lane — only the pill
+    // responds, so the board does not reshuffle for a change of sprint.
+    const over = carrying ?? dragging;
+    if (over?.kind === 'status') return over.id;
     return task.status;
   }
 
   // The board and its keyboard navigation must agree on what is on screen,
   // or the arrows will walk onto a card the filters have hidden.
   const milestoneName = (task: Task) =>
-    milestones.find((milestone) => milestone.id === (task.milestoneId ?? null))?.name ?? '';
+    milestones.find((milestone) => milestone.id === taskMilestone(task, sprints))?.name ?? '';
 
   const visibleTasks = tasks.filter(
     (task) =>
       matchesFilters(task, filters, milestoneName(task)) &&
       // Tasks stored before milestones existed read back as undefined.
-      (activeMilestone === null || (task.milestoneId ?? null) === activeMilestone) &&
-      (activeSprint === null || (task.sprintId ?? null) === activeSprint)
+      (activeMilestone === null || taskMilestone(task, sprints) === activeMilestone) &&
+      (activeSprint === null ||
+        (activeSprint === UNSCHEDULED
+          ? (task.sprintId ?? null) === null
+          : (task.sprintId ?? null) === activeSprint))
   );
 
   function focusCard(id: string) {
@@ -288,9 +335,119 @@ export default function App() {
     if (grabbed) focusCard(grabbed.id);
   }, [grabbed, tasks]);
 
-  function placeGrabbed(current: { id: string; target: TaskStatus }) {
-    moveTask(current.id, current.target);
+  /**
+   * Where the carried card floats while it is aimed at a sprint pill.
+   *
+   * A keyboard carry has no pointer to follow, so without this the card would
+   * sit in its lane while something lit up in a different part of the screen.
+   * Putting the card itself over the pill is what makes it read as being
+   * carried there. Measured rather than derived: the pill's position depends on
+   * how far the strip has scrolled.
+   */
+  const [carriedTo, setCarriedTo] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const target = grabbed?.target;
+    if (!grabbed || target?.kind !== 'sprint') {
+      setCarriedTo(null);
+      return;
+    }
+    // The slot, not `[data-card-id]` — that lives on the title button inside
+    // the card, so measuring it sized the chip to the width of the title.
+    const card = boardRef.current?.querySelector<HTMLElement>(`[data-flip-id="${grabbed.id}"]`);
+    // An empty attribute value is the "No sprint" pill; `[attr=""]` matches it.
+    const pill = document.querySelector<HTMLElement>(`[data-drop-sprint="${target.id ?? ''}"]`);
+    if (!card || !pill) {
+      setCarriedTo(null);
+      return;
+    }
+    // Arrowing onto a pill that has scrolled out of the strip would otherwise
+    // float the card off the side of the screen. Instant, so the measurement
+    // below sees the settled position.
+    pill.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const from = card.getBoundingClientRect();
+    const onto = pill.getBoundingClientRect();
+    // The unscaled box, placed so its bottom-centre lands CHIP_GAP above the
+    // pill's centre. transform-origin: bottom center pins that point, so the
+    // gap holds at any scale — including while the card collapses to nothing.
+    setCarriedTo({
+      left: onto.left + onto.width / 2 - from.width / 2,
+      top: onto.top - CHIP_GAP - from.height,
+      width: from.width,
+    });
+  }, [grabbed]);
+
+  const carriedTask = grabbed ? tasks.find((task) => task.id === grabbed.id) : undefined;
+  // Only while it is actually floating: aimed at a lane, the card stays put.
+  const liftedId = carriedTo && grabbed ? grabbed.id : null;
+
+  /**
+   * A sprint drop that would also change the task's milestone, held back until
+   * confirmed.
+   *
+   * Only the board needs this: a drop is instant and committed with no form on
+   * screen to show what it did, whereas the modal's milestone field updates in
+   * front of you and nothing is written until Save.
+   */
+  const [pendingSprintMove, setPendingSprintMove] = useState<{
+    id: string;
+    target: DropTarget;
+    from: string | null;
+    to: string | null;
+  } | null>(null);
+
+  function commitDrop(id: string, target: DropTarget) {
+    const task = tasks.find((one) => one.id === id);
+    if (target.kind === 'sprint' && task) {
+      const from = taskMilestone(task, sprints);
+      const to = taskMilestone({ ...task, sprintId: target.id }, sprints);
+      if (from !== to) return setPendingSprintMove({ id, target, from, to });
+    }
+    writeDrop(id, target);
+  }
+
+  const milestoneTitle = (id: string | null) =>
+    id === null ? 'no milestone' : (milestones.find((one) => one.id === id)?.name ?? 'a milestone');
+
+  // Where a dropped copy is collapsing into its pill, and the card it belongs
+  // to — held separately from `grabbed` because the carry is over by then.
+  const [landing, setLanding] = useState<{
+    task: Task;
+    at: { left: number; top: number; width: number };
+  } | null>(null);
+
+  useEffect(() => {
+    if (!landing) return;
+    const timer = setTimeout(() => setLanding(null), 260); // just past the 240ms animation
+    return () => clearTimeout(timer);
+  }, [landing]);
+
+  function placeGrabbed(current: { id: string; target: DropTarget }) {
+    // Filing into a sprint moves nothing, so there is no travel to animate —
+    // the copy collapses into the pill instead, which is what says "it went in
+    // there", while the ghost left behind comes back to full strength.
+    const task = tasks.find((one) => one.id === current.id);
+    if (current.target.kind === 'sprint' && carriedTo && task) {
+      setLanding({ task: { ...task, sprintId: current.target.id }, at: carriedTo });
+    }
+    commitDrop(current.id, current.target);
     setGrabbed(null);
+  }
+
+  /** The corner badge for a task, or nothing if it is not in a live sprint. */
+  function sprintBadge(task: Task) {
+    const id = task.sprintId;
+    // A task can outlive its sprint, so a dangling id gets no badge.
+    if (id === null || sprintNos[id] === undefined) return undefined;
+    return {
+      label: `S${sprintNos[id]}`,
+      name: `Sprint ${sprintNos[id]}`,
+      colour: sprintColors[id],
+    };
   }
 
   // Anything that interrupts a carry drops the card where it is sitting rather
@@ -305,7 +462,9 @@ export default function App() {
       window.removeEventListener('pointerdown', place);
       window.removeEventListener('blur', place);
     };
-  }, [grabbed]);
+    // carriedTo too, so an interrupted carry collapses from where it is sitting
+    // rather than from a stale position.
+  }, [grabbed, carriedTo]);
 
   // Tap Cmd/Ctrl to jump straight to the board — Tab would take eight presses
   // to get past the header, deliverables and driving strip. Mid-carry the same
@@ -321,6 +480,30 @@ export default function App() {
     },
     onHoldChange: setShowShortcuts,
   });
+
+  // The pills a carried card can be dropped on, left to right, matching what
+  // the sprints row is showing. "All" is a filter rather than a sprint, so it
+  // is not a target; null is the "No sprint" pill, which is how a card gets
+  // taken back out of a sprint without opening the modal.
+  const sprintDropTargets: (string | null)[] = [
+    null,
+    ...sprintsForMilestone(sprints, activeMilestone).map((sprint) => sprint.id),
+  ];
+
+  /** What the toast says once a carried card lands. Read before the write. */
+  function placedMessage(id: string, target: DropTarget): string {
+    if (target.kind === 'status') {
+      const stage = STAGES.find((one) => one.id === target.id);
+      return `Placed in ${stage?.label ?? 'the board'}.`;
+    }
+    const held = tasks.find((task) => task.id === id)?.sprintId ?? null;
+    if (target.id === null) {
+      return held === null ? 'Still not in a sprint.' : 'Taken out of its sprint.';
+    }
+    const name = `Sprint ${sprintNumbers(sprints)[target.id]}`;
+    // One sprint per task, so landing on a pill from another one is a move.
+    return held === null || held === target.id ? `Added to ${name}.` : `Moved to ${name}.`;
+  }
 
   /**
    * Arrow-key navigation and Space-to-grab, delegated from the board.
@@ -342,30 +525,39 @@ export default function App() {
     if (at === null) return;
 
     if (grabbed?.id === id) {
-      if (key === 'ArrowLeft' || key === 'ArrowRight') {
-        event.preventDefault();
-        const next = at.column + (key === 'ArrowRight' ? 1 : -1);
-        if (next >= 0 && next < STAGES.length) setGrabbed({ id, target: STAGES[next].id });
-        return;
-      }
-      if (key === ' ') {
-        event.preventDefault();
-        placeGrabbed(grabbed); // the only write in the whole carry
-        setToast(`Placed in ${STAGES[at.column].label}.`);
-        return;
-      }
+      const target = grabbed.target;
+
       if (key === 'Escape') {
         event.preventDefault();
         setGrabbed(null); // nothing was written, so there is nothing to undo
         setToast('Move cancelled.');
+        return;
       }
+      if (key === ' ') {
+        event.preventDefault();
+        const message = placedMessage(id, target); // reads the pre-move sprint
+        placeGrabbed(grabbed); // the only write in the whole carry
+        setToast(message);
+        return;
+      }
+
+      event.preventDefault(); // every arrow belongs to the carry
+      // Up out of the lanes and into the sprints row: the keyboard twin of
+      // dragging a card up to the strip.
+      const next = carryTo(target, key, {
+        lanes: STAGES.map((stage) => stage.id),
+        strip: sprintDropTargets,
+        lane: at.column,
+        held: tasks.find((task) => task.id === id)?.sprintId ?? null,
+      });
+      if (next) setGrabbed({ id, target: next });
       return;
     }
 
     if (key === ' ') {
       event.preventDefault(); // otherwise Space opens the task
-      setGrabbed({ id, target: STAGES[at.column].id });
-      setToast(`Grabbed. ← → to move, Space or ${MODIFIER_LABEL} to place, Esc to cancel.`);
+      setGrabbed({ id, target: { kind: 'status', id: STAGES[at.column].id } });
+      setToast(`Grabbed. ← → lane, ↑ sprint, Space or ${MODIFIER_LABEL} to place, Esc to cancel.`);
       return;
     }
 
@@ -381,8 +573,22 @@ export default function App() {
    * confirm says so explicitly, because "delete" next to a list of work reads
    * like it takes the work with it.
    */
+  /**
+   * What a milestone holds, for the delete confirm and its toast — which used
+   * to count this separately and could disagree.
+   *
+   * Tasks are counted on the derived milestone, so a task filed here only
+   * through its sprint is included: it leaves this tab too.
+   */
+  function milestoneHolds(id: string) {
+    return {
+      tasks: tasks.filter((task) => taskMilestone(task, sprints) === id).length,
+      sprints: sprints.filter((sprint) => sprint.milestoneId === id).length,
+    };
+  }
+
   function removeMilestone(id: string) {
-    const held = tasks.filter((task) => (task.milestoneId ?? null) === id).length;
+    const held = milestoneHolds(id);
 
     setMilestones((prev) => prev.filter((milestone) => milestone.id !== id));
     setTasks((prev) =>
@@ -390,12 +596,21 @@ export default function App() {
         (task.milestoneId ?? null) === id ? { ...task, milestoneId: null } : task
       )
     );
+    // Sprints filed here would otherwise keep pointing at a milestone that no
+    // longer exists. Unfiling them also lets any task that sat under this tab
+    // through its sprint fall back to its own milestone.
+    setSprints((prev) =>
+      prev.map((sprint) => (sprint.milestoneId === id ? { ...sprint, milestoneId: null } : sprint))
+    );
     if (activeMilestone === id) setActiveMilestone(null); // do not strand the view on a dead tab
     setPendingDelete(null);
+
+    const freed = [
+      held.tasks && `${held.tasks} task${held.tasks === 1 ? '' : 's'} unassigned`,
+      held.sprints && `${held.sprints} sprint${held.sprints === 1 ? '' : 's'} unfiled`,
+    ].filter(Boolean);
     setToast(
-      held === 0
-        ? 'Milestone deleted.'
-        : `Milestone deleted · ${held} task${held === 1 ? '' : 's'} unassigned.`
+      freed.length === 0 ? 'Milestone deleted.' : `Milestone deleted · ${freed.join(' · ')}.`
     );
   }
 
@@ -573,7 +788,7 @@ export default function App() {
               <Kbd>{MODIFIER_LABEL}</Kbd> board · <Kbd>←</Kbd>
               <Kbd>→</Kbd>
               <Kbd>↑</Kbd>
-              <Kbd>↓</Kbd> move · <Kbd>Space</Kbd> grab,{' '}
+              <Kbd>↓</Kbd> move · <Kbd>Space</Kbd> grab, <Kbd>↑</Kbd> to a sprint,{' '}
               <Kbd>Space</Kbd>/<Kbd>{MODIFIER_LABEL}</Kbd> place · <Kbd>Esc</Kbd> cancel ·{' '}
               <Kbd>↵</Kbd> open · <Kbd>M</Kbd> next milestone
             </p>
@@ -585,13 +800,13 @@ export default function App() {
             onSelect={(id) => {
               setActiveMilestone(id);
               // Do not leave the board filtered by a sprint this tab hides.
+              // Asks sprintsForMilestone rather than repeating its rule, which
+              // is how this drifted out of step with it before. "No sprint" is
+              // a fixed pill on every tab, so that selection always survives.
               const stillShown =
                 activeSprint === null ||
-                sprints.some(
-                  (sprint) =>
-                    sprint.id === activeSprint &&
-                    (id === null || sprint.milestoneId === id || sprint.milestoneId === null)
-                );
+                activeSprint === UNSCHEDULED ||
+                sprintsForMilestone(sprints, id).some((sprint) => sprint.id === activeSprint);
               if (!stillShown) setActiveSprint(null);
             }}
             onAdd={(name) => {
@@ -625,8 +840,12 @@ export default function App() {
               activeMilestone={activeMilestone}
               activeSprint={activeSprint}
               onSelect={setActiveSprint}
+              colors={sprintColors}
+              dark={theme === 'dark'}
+              dropTarget={grabbed?.target ?? drag?.over}
               onAdd={() => setEditingSprint('new')}
               onEdit={setEditingSprint}
+              onDelete={setPendingSprintDelete}
             />
 
             <div
@@ -650,7 +869,8 @@ export default function App() {
             {STAGES.map((stage, index) => {
               const stageTasks = visibleTasks.filter((task) => statusOf(task) === stage.id);
               const headingId = `column-${stage.id}`;
-              const isTarget = drag?.over === stage.id || grabbed?.target === stage.id;
+              const over = grabbed?.target ?? drag?.over;
+              const isTarget = over?.kind === 'status' && over.id === stage.id;
 
               return (
                 <section
@@ -738,7 +958,16 @@ export default function App() {
                             onCopy={() => copyContext(task)}
                             onPointerDown={bindCard(task.id)}
                             tagColors={tagColors}
-                            isDragging={drag?.taskId === task.id}
+                            sprint={sprintBadge(task)}
+                            lifted={
+                              drag?.taskId === task.id
+                                ? 'moving'
+                                : liftedId === task.id
+                                  ? 'filing'
+                                  : landing?.task.id === task.id
+                                    ? 'landing'
+                                    : undefined
+                            }
                             onHighlight={setHighlighted}
                             selection={
                               grabbed?.id === task.id
@@ -777,16 +1006,68 @@ export default function App() {
         />
       )}
 
+      {pendingSprintMove && (
+        <ConfirmDialog
+          title="Change this task's milestone?"
+          confirmLabel="Change"
+          message={(() => {
+            const { target, from, to } = pendingSprintMove;
+            const where = `from ${milestoneTitle(from)} to ${milestoneTitle(to)}`;
+            return target.kind === 'sprint' && target.id === null
+              ? `Taking this task out of its sprint moves it ${where}, back to the milestone set on the task itself.`
+              : `Sprint ${sprintNos[target.id as string]} is filed under ${milestoneTitle(
+                  to
+                )}, so this task moves ${where}. The milestone set on the task itself is kept, and comes back if you take it out of the sprint.`;
+          })()}
+          onConfirm={() => {
+            writeDrop(pendingSprintMove.id, pendingSprintMove.target);
+            setPendingSprintMove(null);
+          }}
+          onCancel={() => setPendingSprintMove(null)}
+        />
+      )}
+
+      {pendingSprintDelete && (
+        <ConfirmDialog
+          title={`Delete Sprint ${orderSprints(sprints).findIndex((sprint) => sprint.id === pendingSprintDelete.id) + 1}?`}
+          message={(() => {
+            const held = tasks.filter(
+              (task) => task.sprintId === pendingSprintDelete.id
+            ).length;
+            return held === 0
+              ? 'It has no tasks, so nothing else changes. The sprints after it will renumber.'
+              : `Its ${held} task${held === 1 ? '' : 's'} will stay on the board and become unscheduled. The sprints after it will renumber.`;
+          })()}
+          onConfirm={() => {
+            const id = pendingSprintDelete.id;
+            setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
+            // Tasks survive; they just stop being scheduled.
+            setTasks((prev) =>
+              prev.map((task) => (task.sprintId === id ? { ...task, sprintId: null } : task))
+            );
+            if (activeSprint === id) setActiveSprint(null);
+            setPendingSprintDelete(null);
+            setToast('Sprint deleted.');
+          }}
+          onCancel={() => setPendingSprintDelete(null)}
+        />
+      )}
+
       {pendingDelete && (
         <ConfirmDialog
           title={`Delete “${pendingDelete.name}”?`}
           message={(() => {
-            const held = tasks.filter(
-              (task) => (task.milestoneId ?? null) === pendingDelete.id
-            ).length;
-            return held === 0
-              ? 'It has no tasks, so nothing else changes.'
-              : `Its ${held} task${held === 1 ? '' : 's'} will stay on the board and become unassigned from any milestone.`;
+            const held = milestoneHolds(pendingDelete.id);
+            if (held.tasks === 0 && held.sprints === 0) {
+              return 'It holds nothing, so nothing else changes.';
+            }
+            const parts = [
+              held.tasks > 0 &&
+                `its ${held.tasks} task${held.tasks === 1 ? '' : 's'} will stay on the board and become unassigned from any milestone`,
+              held.sprints > 0 &&
+                `its ${held.sprints} sprint${held.sprints === 1 ? '' : 's'} will stay, filed under no milestone`,
+            ].filter(Boolean);
+            return `Nothing is deleted with it — ${parts.join(', and ')}.`;
           })()}
           onConfirm={() => removeMilestone(pendingDelete.id)}
           onCancel={() => setPendingDelete(null)}
@@ -828,16 +1109,17 @@ export default function App() {
             );
             setEditingSprint(null);
           }}
-          onDelete={(id) => {
-            setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
-            // Tasks survive; they just stop being scheduled.
-            setTasks((prev) =>
-              prev.map((task) => (task.sprintId === id ? { ...task, sprintId: null } : task))
-            );
-            if (activeSprint === id) setActiveSprint(null);
-            setEditingSprint(null);
-            setToast('Sprint deleted.');
-          }}
+          colour={
+            editingSprint === 'new' ? undefined : sprintColors[editingSprint.id]
+          }
+          onPickColor={(id, picked) =>
+            setChosenSprintColors((prev) => {
+              const next = { ...prev };
+              if (picked === null) delete next[id];
+              else next[id] = picked;
+              return next;
+            })
+          }
           onClose={() => setEditingSprint(null)}
         />
       )}
@@ -890,7 +1172,86 @@ export default function App() {
             }}
           >
             <TaskCard
-              task={{ ...draggedTask, status: drag.over ?? draggedTask.status }}
+              task={{ ...draggedTask, status: statusOf(draggedTask) }}
+              sprint={sprintBadge(
+                drag.over?.kind === 'sprint'
+                  ? { ...draggedTask, sprintId: drag.over.id }
+                  : draggedTask
+              )}
+              tagColors={tagColors}
+              isOverlay
+              onOpen={() => {}}
+              onCopy={() => {}}
+              onHighlight={() => {}}
+              selection={null}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* The carried card once it is aimed at a sprint pill. A pointer drag has
+          its own overlay under the cursor; a keyboard carry has nothing to
+          follow, so the card parks above the pill and slides between pills as
+          the arrows walk the strip — the card is the thing being moved, and
+          the pill's border only confirms which one. */}
+      {carriedTo &&
+        carriedTask &&
+        createPortal(
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed z-50 transition-all duration-200 ease-out"
+            style={{
+              left: carriedTo.left,
+              top: carriedTo.top,
+              width: carriedTo.width,
+              transform: `scale(${CHIP_SCALE})`,
+              transformOrigin: 'bottom center',
+            }}
+          >
+            <TaskCard
+              task={carriedTask}
+              // Previews the result: the badge shows the pill being aimed at.
+              sprint={sprintBadge(
+                grabbed?.target.kind === 'sprint'
+                  ? { ...carriedTask, sprintId: grabbed.target.id }
+                  : carriedTask
+              )}
+              tagColors={tagColors}
+              isOverlay
+              onOpen={() => {}}
+              onCopy={() => {}}
+              onHighlight={() => {}}
+              selection={null}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* The dropped copy, collapsing into the pill it landed on. Same box and
+          origin as the carried chip above, so it starts exactly where that one
+          stopped and shrinks to nothing at the pill. */}
+      {landing &&
+        createPortal(
+          <div
+            aria-hidden="true"
+            className="anim-drop-into-pill pointer-events-none fixed z-50"
+            style={
+              {
+                left: landing.at.left,
+                top: landing.at.top,
+                width: landing.at.width,
+                transformOrigin: 'bottom center',
+                // The animation overrides this while it runs. It is here for
+                // reduced motion, where the keyframes are off and the copy
+                // would otherwise flash at full size before unmounting.
+                transform: `scale(${CHIP_SCALE})`,
+                '--chip-scale': CHIP_SCALE,
+              } as React.CSSProperties
+            }
+          >
+            <TaskCard
+              task={landing.task}
+              sprint={sprintBadge(landing.task)}
               tagColors={tagColors}
               isOverlay
               onOpen={() => {}}

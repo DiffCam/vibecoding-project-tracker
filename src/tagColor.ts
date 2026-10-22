@@ -64,16 +64,28 @@ export function resolveTagColors(
 }
 
 /**
+ * The palette is ordered by hue family, so walking it one at a time hands
+ * neighbouring keys near-identical colours — the first two sprints would both
+ * be burnt orange, ΔE 13 apart. Striding by 11 jumps hue families instead:
+ * adjacent assignments land ΔE 79 apart across the first six, and since
+ * gcd(11, 30) = 1 every colour is still used before any repeats.
+ */
+const STRIDE = 11;
+
+/**
  * Hands every key a colour: the one it was given, or the next unused one.
- * Shared by tags and teammates so both behave the same way — a pick sticks,
- * and automatic assignment never duplicates a pick.
+ * Shared by tags, teammates and sprints so all three behave the same way — a
+ * pick sticks, and automatic assignment never duplicates a pick.
  */
 export function assignColors(
   keys: string[],
   chosen: Record<string, string> = {}
 ): Record<string, string> {
   const taken = new Set(keys.map((key) => chosen[key]).filter(Boolean));
-  const available = TAG_PALETTE.filter((colour) => !taken.has(colour));
+  const strided = TAG_PALETTE.map(
+    (_, index) => TAG_PALETTE[(index * STRIDE) % TAG_PALETTE.length]
+  );
+  const available = strided.filter((colour) => !taken.has(colour));
 
   const resolved: Record<string, string> = {};
   let next = 0;
@@ -83,10 +95,35 @@ export function assignColors(
     } else {
       resolved[key] = available.length
         ? available[next++ % available.length]
-        : TAG_PALETTE[next++ % TAG_PALETTE.length];
+        : strided[next++ % strided.length];
     }
   }
   return resolved;
+}
+
+/**
+ * The palette tuned for use as text or an outline rather than as a fill.
+ *
+ * These colours are chosen so WHITE sits on them at 4.9:1 or better, which
+ * makes them too close in luminance to be read ON a surface: as text they
+ * manage only 3.60:1 on the light row and 1.71:1 on the dark one. Nudging
+ * each one away from the surface behind it — darker on light, lighter on
+ * dark — clears AA both ways off a single palette, and works just as well
+ * for a colour picked by hand.
+ */
+export function accentInk(colour: string, dark: boolean): string {
+  const [target, amount] = dark ? [255, 0.4] : [0, 0.2];
+  const channels = colour.replace('#', '').match(/../g) ?? [];
+
+  return (
+    '#' +
+    channels
+      .map((pair) => {
+        const value = Math.round(parseInt(pair, 16) * (1 - amount) + target * amount);
+        return value.toString(16).padStart(2, '0');
+      })
+      .join('')
+  );
 }
 
 /** A tag's colour, falling back to a stable hash if it is not in the library. */

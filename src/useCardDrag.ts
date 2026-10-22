@@ -2,9 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { TaskStatus } from './types';
 
+/**
+ * Somewhere a card can be dropped. A lane sets its status, a sprint pill sets
+ * its sprint — one gesture, and the target decides what it means.
+ *
+ * `kind: 'sprint'` with a null id is the "No sprint" pill, which unassigns.
+ */
+export type DropTarget =
+  | { kind: 'status'; id: TaskStatus }
+  | { kind: 'sprint'; id: string | null };
+
+/** Targets are rebuilt every pointermove, so identity cannot be compared. */
+export function sameTarget(a: DropTarget | null, b: DropTarget | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.kind === b.kind && a.id === b.id;
+}
+
 export type DragSession = {
   taskId: string;
-  over: TaskStatus | null;
+  over: DropTarget | null;
   width: number;
   origin: string;
   /** Where the overlay starts, so its first paint is already in the right
@@ -16,6 +32,10 @@ export type DragSession = {
 
 const THRESHOLD = 5; // px of travel before a press counts as a drag, so clicks survive
 const MAX_TILT = 14; // degrees
+// Over a sprint pill the card shrinks to roughly pill-sized: the pill is a far
+// smaller target than a lane, and a full-size card would bury the row it is
+// aiming at.
+export const CHIP_SCALE = 0.4;
 const SETTLE_TIMEOUT = 1200; // ms — never leave the overlay up if the spring misbehaves
 
 /**
@@ -68,9 +88,16 @@ function spring(
   return [pos + nextVel * dt, nextVel] as const;
 }
 
-function statusAt(x: number, y: number): TaskStatus | null {
-  const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop-status]');
-  return (el?.dataset.dropStatus as TaskStatus | undefined) ?? null;
+function targetAt(x: number, y: number): DropTarget | null {
+  const el = document
+    .elementFromPoint(x, y)
+    ?.closest<HTMLElement>('[data-drop-status], [data-drop-sprint]');
+  if (!el) return null;
+  // An empty attribute is the "No sprint" pill; a lane has no sprint attribute
+  // at all, so `undefined` is what separates the two.
+  const sprint = el.dataset.dropSprint;
+  if (sprint !== undefined) return { kind: 'sprint', id: sprint === '' ? null : sprint };
+  return { kind: 'status', id: el.dataset.dropStatus as TaskStatus };
 }
 
 /** A drag ends on pointerup, which would otherwise also fire a click and open the task. */
@@ -94,11 +121,11 @@ function suppressNextClick() {
  * card (`lever`), so picking it up by a corner swings it more than by the
  * middle. On release it springs into the destination slot rather than cutting.
  */
-export function useCardDrag(onDrop: (taskId: string, status: TaskStatus) => void) {
+export function useCardDrag(onDrop: (taskId: string, target: DropTarget) => void) {
   const [session, setSession] = useState<DragSession | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const sim = useRef<Sim | null>(null);
-  const overRef = useRef<TaskStatus | null>(null);
+  const overRef = useRef<DropTarget | null>(null);
   const detach = useRef<(() => void) | null>(null);
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
@@ -131,7 +158,8 @@ export function useCardDrag(onDrop: (taskId: string, status: TaskStatus) => void
         s.x = s.tx;
         s.y = s.ty;
         s.rot = 0;
-        s.scale = s.phase === 'dragging' ? 1.02 : 1;
+        s.scale =
+          s.phase !== 'dragging' ? 1 : overRef.current?.kind === 'sprint' ? CHIP_SCALE : 1.02;
       } else {
         const settling = s.phase === 'settling';
         const stiffness = settling ? 380 : 900;
@@ -145,7 +173,9 @@ export function useCardDrag(onDrop: (taskId: string, status: TaskStatus) => void
           // Underdamped, so the tilt wobbles back to rest instead of snapping.
           const tilt = settling ? 0 : clamp(s.vx * 0.022 * s.lever, -MAX_TILT, MAX_TILT);
           [s.rot, s.vrot] = spring(s.rot, s.vrot, tilt, 260, 11, dt);
-          [s.scale, s.vscale] = spring(s.scale, s.vscale, settling ? 1 : 1.045, 500, 22, dt);
+          const grown =
+            overRef.current?.kind === 'sprint' ? CHIP_SCALE : 1.045;
+          [s.scale, s.vscale] = spring(s.scale, s.vscale, settling ? 1 : grown, 500, 22, dt);
         }
       }
 
@@ -200,8 +230,8 @@ export function useCardDrag(onDrop: (taskId: string, status: TaskStatus) => void
         if (!s || s.phase !== 'dragging') return;
         s.tx = cx - s.offsetX;
         s.ty = cy - s.offsetY;
-        const over = statusAt(cx, cy);
-        if (over !== overRef.current) {
+        const over = targetAt(cx, cy);
+        if (!sameTarget(over, overRef.current)) {
           overRef.current = over;
           setSession((prev) => (prev ? { ...prev, over } : prev));
         }
@@ -238,7 +268,7 @@ export function useCardDrag(onDrop: (taskId: string, status: TaskStatus) => void
           raf: 0,
           reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
         };
-        overRef.current = statusAt(startX, startY);
+        overRef.current = targetAt(startX, startY);
         setSession({
           taskId,
           over: overRef.current,

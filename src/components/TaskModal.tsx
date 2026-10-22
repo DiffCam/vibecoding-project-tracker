@@ -3,7 +3,7 @@ import { AI_TOOLS, CONTEXT_TEMPLATE, STAGES, TYPE_ACCENT } from '../constants';
 import { relativeTime } from '../relativeTime';
 import TypeIcon from './TypeIcon';
 import { colorFor, TAG_INK } from '../tagColor';
-import { sprintEnd, sprintNumbers, sprintsForMilestone } from '../sprints';
+import { dictatingSprint, orderSprints, sprintEnd, sprintNumbers } from '../sprints';
 import type { AITool, Milestone, Sprint, Task, TaskStatus, TaskType, TeamMember } from '../types';
 
 // Native <dialog> + showModal() so the focus trap, Escape-to-close, inert
@@ -70,6 +70,23 @@ export default function TaskModal({
   // changed (5.D). Derived from props — blankTask() always seeds the template.
   const originalContext = task ? task.context : CONTEXT_TEMPLATE;
   const updatedHint = form.contextUpdatedAt && relativeTime(form.contextUpdatedAt);
+
+  const numbers = sprintNumbers(sprints);
+  const milestoneOf = (id: string | null) =>
+    id === null ? 'no milestone' : (milestones.find((one) => one.id === id)?.name ?? 'a milestone');
+
+  // Every sprint, not just this milestone's: picking one is how a task changes
+  // milestone, so filtering by the milestone would make that unreachable.
+  const sprintChoices = orderSprints(sprints);
+
+  // A sprint filed under a milestone decides this task's, so the field shows
+  // that and stops being editable — two editable fields answering the same
+  // question is the confusing case. `form.milestoneId` is left alone
+  // underneath, so it returns the moment the sprint does not decide any more.
+  const lockedBy = dictatingSprint(form, sprints);
+  const lockNote = lockedBy
+    ? `Set by Sprint ${numbers[lockedBy.id]}, which is filed under this milestone. Change Sprint to Unscheduled to pick a milestone yourself; the one saved on this task comes back.`
+    : undefined;
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -202,13 +219,26 @@ export default function TaskModal({
             </div>
 
             <div>
-              <label className={LABEL} htmlFor="task-milestone">
+              <label className={`${LABEL} flex items-center gap-1`} htmlFor="task-milestone">
                 Milestone
+                {lockNote && (
+                  <span
+                    role="img"
+                    aria-label={lockNote}
+                    title={lockNote}
+                    className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-line font-mono text-[9px] leading-none"
+                  >
+                    ?
+                  </span>
+                )}
               </label>
               <select
                 id="task-milestone"
-                className={FIELD}
-                value={form.milestoneId ?? ''}
+                className={`${FIELD} disabled:cursor-not-allowed disabled:opacity-60`}
+                // The derived milestone while a sprint decides it, the task's
+                // own otherwise. Writes only ever touch the task's own.
+                value={(lockedBy ? lockedBy.milestoneId : form.milestoneId) ?? ''}
+                disabled={lockedBy !== undefined}
                 onChange={(event) =>
                   setForm({ ...form, milestoneId: event.target.value || null })
                 }
@@ -235,11 +265,12 @@ export default function TaskModal({
                 }
               >
                 <option value="">Unscheduled</option>
-                {/* Only sprints this task's milestone can see. */}
-                {sprintsForMilestone(sprints, form.milestoneId).map((sprint) => (
+                {/* Milestone shown on each option, because choosing one here
+                    is what sets the task's milestone. */}
+                {sprintChoices.map((sprint) => (
                   <option key={sprint.id} value={sprint.id}>
-                    Sprint {sprintNumbers(sprints)[sprint.id]} · {sprint.startDate} →{' '}
-                    {sprintEnd(sprint)}
+                    Sprint {numbers[sprint.id]} · {milestoneOf(sprint.milestoneId)} ·{' '}
+                    {sprint.startDate} → {sprintEnd(sprint)}
                   </option>
                 ))}
               </select>

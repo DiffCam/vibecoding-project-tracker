@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { DUE_PILL, TYPE_ACCENT } from '../constants';
 import { dueCountdown, dueState } from '../dueState';
 import Avatar from './Avatar';
@@ -7,6 +8,20 @@ import { TagChip } from './TagsDialog';
 import TypeIcon from './TypeIcon';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Task } from '../types';
+
+/**
+ * How a card looks while a copy of it is elsewhere.
+ *
+ * `moving` vacates the slot — the card really is going somewhere else. `filing`
+ * leaves a ghost instead, because assigning a sprint does not move the card;
+ * only its badge changes. `landing` brings the ghost back as the copy collapses
+ * into the pill.
+ */
+const LIFTED = {
+  moving: 'opacity-0',
+  filing: 'opacity-30',
+  landing: 'anim-ghost-return',
+} as const;
 
 // Two keyboard states, deliberately different shapes so they are never confused:
 // a dashed outline means "the cursor is here", solid + lifted means "in hand".
@@ -41,7 +56,8 @@ export default function TaskCard({
   onPointerDown,
   tagColors,
   selection,
-  isDragging = false,
+  sprint,
+  lifted,
   isOverlay = false,
 }: {
   task: Task;
@@ -52,21 +68,45 @@ export default function TaskCard({
   /** Resolved tag colours, so a chip looks the same everywhere it appears. */
   tagColors: Record<string, string>;
   selection: 'highlighted' | 'grabbed' | null;
-  /** The real card, left in place as an invisible spacer while its overlay flies. */
-  isDragging?: boolean;
+  /** The sprint this task sits in, if any — shown as a corner badge. */
+  sprint?: { label: string; name: string; colour: string };
+  /** Set while a copy of this card is in the air. Hidden with opacity rather
+   *  than visibility: a `visibility: hidden` element cannot hold focus, so
+   *  hiding a keyboard-carried card blurred it and the arrows stopped reaching
+   *  the board's handler. */
+  lifted?: keyof typeof LIFTED;
   /** The copy under the cursor — already lifted, so no hover or selection state. */
   isOverlay?: boolean;
 }) {
+  // The badge stays mounted with or without a sprint, so it can animate both
+  // ways: React would unmount it on removal before an exit animation could
+  // run, and a first-time assignment would mount it already full size. The ref
+  // keeps the last sprint so the circle holds its colour and number while it
+  // shrinks away, rather than going blank mid-exit.
+  const lastSprint = useRef(sprint);
+  if (sprint) lastSprint.current = sprint;
+  const badge = sprint ?? lastSprint.current;
+
   const accent = TYPE_ACCENT[task.type];
   const state = dueState(task);
   const countdown = dueCountdown(task);
 
   return (
+    // A wrapper, because the badge has to overhang the card's own
+    // overflow-hidden — which exists to clip the left rail to the rounded
+    // corners. The lift and the outline move out here with it, so the badge
+    // tilts along with the card rather than staying flat on top of it, and
+    // rounded-lg keeps that shadow and outline on the card's corners.
+    <div
+      className={`relative rounded-lg ${lifted ? LIFTED[lifted] : ''} ${
+        selection ? SELECTION[selection] : ''
+      }`}
+    >
     <div
       onPointerDown={onPointerDown}
       className={`relative flex touch-none select-none overflow-hidden rounded-lg border border-line bg-surface-card ${
         isOverlay ? 'cursor-grabbing shadow-2xl' : 'cursor-grab hover:border-brand-primary'
-      } ${isDragging ? 'invisible' : ''} ${selection ? SELECTION[selection] : ''}`}
+      }`}
     >
       {/* Flush to the card's edge with no padding or gap — the card's own
           overflow-hidden clips them to its rounded corners. */}
@@ -160,6 +200,27 @@ export default function TaskCard({
           </div>
         )}
       </div>
+    </div>
+
+    {/* Overhanging the corner like a notification bubble: it costs the card no
+        layout, and sprint membership is a glance-level fact. A hair of
+        elevation instead of a border — enough to read as stuck on top of the
+        card without a ring around it — see .sprint-badge in index.css, which
+        also carries the pop. Fixed w-5/h-5 keeps it a true circle rather than
+        widening into an oval for two digits.
+        role="img" so the abbreviation is announced in full. */}
+    <span
+      role={sprint ? 'img' : undefined}
+      aria-label={sprint?.name}
+      aria-hidden={sprint ? undefined : true}
+      title={sprint?.name}
+      style={{ backgroundColor: badge?.colour }}
+      className={`sprint-badge pointer-events-none absolute -left-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full font-mono text-[10px] font-medium leading-none text-white ${
+        sprint ? 'scale-100' : 'scale-0'
+      }`}
+    >
+      {badge?.label}
+    </span>
     </div>
   );
 }

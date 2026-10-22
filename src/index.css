@@ -115,12 +115,56 @@
   to   { transform: scale(1);   opacity: 1; }
 }
 
+/**
+ * The sprint badge: a hair of elevation, and the pop it animates with.
+ *
+ * In plain CSS rather than Tailwind because the two values it needs — a shadow
+ * with an alpha slash, and a cubic-bezier with commas — both fail to generate
+ * as arbitrary utilities, and because the lift has to differ per theme. A
+ * black shadow is invisible on a #2C2C2E card, so dark mode leans on a lit top
+ * edge instead, which is what actually reads as raised there.
+ *
+ * Flat everywhere else in the app; the badge earns it by having to sit on top
+ * of the card rather than look painted into it, now that it has no border.
+ */
+:root {
+  --badge-lift: 0 1px 2px rgb(0 0 0 / 0.22);
+}
+:root.dark {
+  --badge-lift: 0 1px 2px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+.sprint-badge {
+  box-shadow: var(--badge-lift);
+  /* Overshoots, so arriving reads as a pop rather than a grow. */
+  transition: transform 200ms cubic-bezier(0.22, 1.25, 0.36, 1);
+}
+
+/* A carried card collapsing into the sprint pill it was dropped on. Paired
+   with transform-origin: bottom center, so it shrinks toward the point just
+   above the pill rather than toward a corner. --chip-scale is set inline, so
+   the start of the animation matches wherever the card was already sitting. */
+@keyframes drop-into-pill {
+  from { transform: scale(var(--chip-scale, 0.4)); opacity: 1; }
+  to   { transform: scale(0); opacity: 0; }
+}
+
+/* The ghost left behind coming back to full strength as its copy lands. */
+@keyframes ghost-return {
+  from { opacity: 0.3; }
+  to   { opacity: 1; }
+}
+
 .anim-slide { animation: slide-from-behind 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-rise  { animation: rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-pop   { animation: pop 320ms cubic-bezier(0.22, 1.25, 0.36, 1) both; }
+.anim-drop-into-pill { animation: drop-into-pill 240ms cubic-bezier(0.4, 0, 1, 1) both; }
+.anim-ghost-return   { animation: ghost-return 240ms ease-out both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-slide, .anim-rise, .anim-pop { animation: none; }
+  .anim-slide, .anim-rise, .anim-pop,
+  .anim-drop-into-pill, .anim-ghost-return { animation: none; }
+  .sprint-badge { transition: none; }
 }
 
 html, body, #root {

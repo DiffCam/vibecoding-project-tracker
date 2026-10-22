@@ -32,7 +32,7 @@ export interface Task {
 
 export interface Sprint {
   id: string;
-  /** null keeps the sprint visible under every milestone tab. */
+  /** null files the sprint under no milestone, so it shows only under All. */
   milestoneId: string | null;
   startDate: string; // ISO 'YYYY-MM-DD'
   days: number;

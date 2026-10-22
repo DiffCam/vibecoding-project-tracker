@@ -7,10 +7,19 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       [MODIFIER_LABEL, 'Jump to the board'],
       [`${MODIFIER_LABEL} hold`, 'This list'],
       ['← → ↑ ↓', 'Move between cards'],
-      ['Space', 'Grab a card, then place it'],
-      [`${MODIFIER_LABEL}`, 'Place a carried card'],
-      ['Esc', 'Cancel a carry'],
       ['↵', 'Open the focused task'],
+    ],
+  },
+  {
+    // Its own group because the arrows mean something different mid-carry:
+    // they aim the card rather than moving focus.
+    title: 'Carrying a card',
+    rows: [
+      ['Space', 'Pick up, then place'],
+      ['← →', 'Change lane'],
+      ['↑ ↓', 'In and out of the sprints row'],
+      [MODIFIER_LABEL, 'Place'],
+      ['Esc', 'Cancel'],
     ],
   },
   {

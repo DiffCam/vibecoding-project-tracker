@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import ColorPicker from './ColorPicker';
 import { MIN_DAYS, sprintEnd } from '../sprints';
 import type { Milestone, Sprint } from '../types';
 
@@ -24,16 +25,20 @@ export default function SprintForm({
   sprint,
   milestones,
   defaultMilestoneId,
+  colour,
   onSave,
-  onDelete,
+  onPickColor,
   onClose,
 }: {
   sprint: Sprint | null; // null = create
   milestones: Milestone[];
   /** The tab you added from, pre-selected. */
   defaultMilestoneId: string | null;
+  /** The colour currently in effect, automatic or chosen. */
+  colour?: string;
   onSave: (sprint: Sprint) => void;
-  onDelete: (id: string) => void;
+  /** `colour: null` hands the sprint back to automatic assignment. */
+  onPickColor: (id: string, colour: string | null) => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -84,7 +89,7 @@ export default function SprintForm({
                 setForm({ ...form, milestoneId: event.target.value || null })
               }
             >
-              <option value="">None — shows under every tab</option>
+              <option value="">None — only shows under All</option>
               {milestones.map((milestone) => (
                 <option key={milestone.id} value={milestone.id}>
                   {milestone.name}
@@ -131,21 +136,17 @@ export default function SprintForm({
           <p className="font-mono text-xs text-text-muted">
             {valid ? `Ends ${sprintEnd({ ...form, days })}` : 'Set a start date and duration'}
           </p>
+
+          <ColorPicker
+            label="Colour"
+            current={colour}
+            onPick={(picked) => onPickColor(form.id, picked)}
+          />
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
-          {sprint ? (
-            <button
-              type="button"
-              onClick={() => onDelete(sprint.id)}
-              className="rounded-lg px-3 py-2 text-sm text-brand-accent hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-            >
-              Delete
-            </button>
-          ) : (
-            <span />
-          )}
-
+        {/* No Delete here: deletion lives on the pill, where it only appears
+            for a sprint you are not currently filtered to. */}
+        <div className="mt-6 flex items-center justify-end">
           <div className="flex gap-2">
             <button
               type="button"

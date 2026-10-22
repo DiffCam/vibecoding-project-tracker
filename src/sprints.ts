@@ -1,4 +1,11 @@
-import type { Sprint } from './types';
+import type { Sprint, Task } from './types';
+
+/**
+ * The "not in any sprint" selection. A literal rather than another nullable,
+ * because the filter already uses null to mean "no filter at all" — and sprint
+ * ids are UUIDs, so this cannot collide with one.
+ */
+export const UNSCHEDULED = 'unscheduled';
 
 /** Shortest sprint worth having; the form clamps to this. */
 export const MIN_DAYS = 1;
@@ -49,9 +56,39 @@ export function sprintNumbers(sprints: Sprint[]): Record<string, number> {
   return numbers;
 }
 
-/** Sprints shown under a milestone tab: its own, plus the unfiled ones. */
+/**
+ * The sprint that decides a task's milestone, if one does.
+ *
+ * Only a sprint filed under a milestone qualifies. An unfiled sprint has no
+ * milestone to pass down, so it decides nothing and the task keeps its own —
+ * which also means the form must leave the field editable in that case, since
+ * a disabled field would be showing a value no sprint is answerable for.
+ */
+export function dictatingSprint(task: Task, sprints: Sprint[]): Sprint | undefined {
+  if (task.sprintId === null) return undefined;
+  const sprint = sprints.find((one) => one.id === task.sprintId);
+  return sprint && sprint.milestoneId !== null ? sprint : undefined;
+}
+
+/**
+ * The milestone a task belongs to: its sprint's, or its own.
+ *
+ * `task.milestoneId` is never overwritten by this — it stays underneath as the
+ * value the task falls back to the moment its sprint is removed or unfiled.
+ */
+export function taskMilestone(task: Task, sprints: Sprint[]): string | null {
+  return dictatingSprint(task, sprints)?.milestoneId ?? task.milestoneId ?? null;
+}
+
+/**
+ * Sprints shown under a milestone tab: only its own.
+ *
+ * An unfiled sprint appears under All and nowhere else. Showing it under every
+ * tab instead reads as though it belongs to each of them, which is misleading
+ * once more than one milestone exists.
+ */
 export function sprintsForMilestone(sprints: Sprint[], milestoneId: string | null): Sprint[] {
   return orderSprints(sprints).filter(
-    (sprint) => milestoneId === null || sprint.milestoneId === milestoneId || sprint.milestoneId === null
+    (sprint) => milestoneId === null || sprint.milestoneId === milestoneId
   );
 }

@@ -1,8 +1,59 @@
 import { useRef } from 'react';
 import Icon from './Icon';
 import ScrollEdge, { useScrollEdges } from './ScrollEdge';
-import { sprintEnd, sprintNumbers, sprintsForMilestone } from '../sprints';
+import { sprintEnd, sprintNumbers, sprintsForMilestone, UNSCHEDULED } from '../sprints';
+import { accentInk, TAG_INK } from '../tagColor';
+import type { DropTarget } from '../useCardDrag';
 import type { Milestone, Sprint } from '../types';
+
+// items-center, not items-stretch: a stretched child does not vertically
+// centre its own text, which is what left the fixed pills sitting high.
+// border-2 on every variant so the outlined and filled states are the same
+// height.
+const PILL =
+  'flex h-6 shrink-0 items-center overflow-hidden rounded-full border-2 text-xs transition-colors';
+
+// Aiming at a pill recolours its border rather than ringing or growing it:
+// the scroller sets overflow-x, which forces overflow-y to auto, so a ring or
+// a scale would be clipped by the 36px row. The carried card floats above the
+// pill, so the border only has to confirm which one.
+const AIMED = 'rgb(var(--brand-primary))';
+
+/** The two fixed selections. Neither is a sprint, so neither takes a colour. */
+function FixedPill({
+  label,
+  active,
+  title,
+  dropSprint,
+  targeted,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  title: string;
+  /** The `data-drop-sprint` value, or absent to refuse drops — "All" is a
+   *  filter, not a sprint, so a card cannot be dropped on it. */
+  dropSprint?: string;
+  targeted?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={title}
+      data-drop-sprint={dropSprint}
+      // Border and fill kept apart so aiming can replace the border without an
+      // !important fighting the state class next to it.
+      className={`${PILL} justify-center px-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
+        targeted ? 'border-brand-primary' : active ? 'border-text-primary' : 'border-line'
+      } ${active ? 'bg-text-primary text-surface-card' : 'bg-surface-card text-text-primary'}`}
+    >
+      {label}
+    </button>
+  );
+}
 
 /**
  * A band of sprint pills across the top of the board.
@@ -14,19 +65,31 @@ import type { Milestone, Sprint } from '../types';
 export default function SprintsRow({
   sprints,
   milestones,
+  colors,
+  dark,
+  dropTarget,
   activeMilestone,
   activeSprint,
   onSelect,
   onAdd,
   onEdit,
+  onDelete,
 }: {
   sprints: Sprint[];
   milestones: Milestone[];
+  /** Resolved per-sprint colours, keyed by id. */
+  colors: Record<string, string>;
+  /** Which way to nudge an outlined chip's colour so it clears AA. */
+  dark: boolean;
+  /** Where a card currently in the air would land, so that pill can light up. */
+  dropTarget?: DropTarget | null;
   activeMilestone: string | null;
+  /** null = All, UNSCHEDULED = tasks in no sprint, otherwise a sprint id. */
   activeSprint: string | null;
   onSelect: (id: string | null) => void;
   onAdd: () => void;
   onEdit: (sprint: Sprint) => void;
+  onDelete: (sprint: Sprint) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { edges, sync } = useScrollEdges(scrollerRef, [sprints.length, activeMilestone]);
@@ -34,62 +97,100 @@ export default function SprintsRow({
   const numbers = sprintNumbers(sprints);
   const shown = sprintsForMilestone(sprints, activeMilestone);
 
+  const targeted = (id: string | null) =>
+    dropTarget?.kind === 'sprint' && dropTarget.id === id;
+
+  // null now means "filed under none", not "shown under all".
   const milestoneName = (id: string | null) =>
-    id === null ? 'every milestone' : (milestones.find((m) => m.id === id)?.name ?? 'a milestone');
+    id === null ? 'no milestone' : (milestones.find((m) => m.id === id)?.name ?? 'a milestone');
+
+  // Adding from the All tab files the sprint under no milestone, which is then
+  // the only tab it appears on — worth saying rather than "add to no milestone".
+  const addLabel =
+    activeMilestone === null
+      ? 'Add a sprint, filed under no milestone'
+      : `Add a sprint to ${milestoneName(activeMilestone)}`;
 
   return (
     <div className="relative flex h-9 items-center border-b border-surface-page bg-surface-sunken">
+      {/* A pennant rather than a plain label: the point aims at the pills it
+          introduces, the same device the lane wedges use for progression. */}
+      <span
+        className="flex h-full shrink-0 items-center bg-surface-sunken-alt pl-3 pr-4 font-mono text-xs text-text-muted"
+        style={{ clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%)' }}
+      >
+        Sprints
+      </span>
+
       <div
         ref={scrollerRef}
         onScroll={sync}
-        className="flex flex-1 items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex flex-1 items-center gap-1.5 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <span className="shrink-0 font-mono text-xs text-text-muted">Sprints</span>
-
-        {shown.length === 0 && (
-          <span className="shrink-0 text-xs text-text-muted">none yet</span>
-        )}
+        <FixedPill
+          label="All"
+          active={activeSprint === null}
+          title="Every task, scheduled or not"
+          onClick={() => onSelect(null)}
+        />
+        <FixedPill
+          label="No sprint"
+          active={activeSprint === UNSCHEDULED}
+          title="Tasks not in any sprint"
+          dropSprint=""
+          targeted={targeted(null)}
+          onClick={() => onSelect(activeSprint === UNSCHEDULED ? null : UNSCHEDULED)}
+        />
 
         {shown.map((sprint) => {
           const active = sprint.id === activeSprint;
           const label = `Sprint ${numbers[sprint.id]}`;
-          const range = `${sprint.startDate} → ${sprintEnd(sprint)}`;
+          const colour = colors[sprint.id];
+          const ink = active ? TAG_INK : accentInk(colour, dark);
+          const aimed = targeted(sprint.id);
 
           return (
-            // One pill, two controls, divided by a rule that runs its full
-            // height — so the edit affordance reads as part of the sprint
-            // rather than a separate button beside it.
+            // One pill, two controls, divided by a rule running its full
+            // height — so the second control reads as part of the sprint
+            // rather than a button beside it. Edit while selected, delete
+            // while not: you cannot pull the board out from under yourself.
+            // Outlined while idle, filled once selected: the colour stays
+            // scannable without a row of saturated chips competing for the
+            // eye, and "filled" is the same signal the fixed pills use. The
+            // border stays the fill colour when active so the pill does not
+            // change size between states.
             <span
               key={sprint.id}
-              className={`flex h-6 shrink-0 items-stretch overflow-hidden rounded-full text-xs ${
-                active
-                  ? 'bg-text-primary text-surface-card'
-                  : 'bg-surface-page text-text-primary'
-              }`}
+              data-drop-sprint={sprint.id}
+              style={{
+                backgroundColor: active ? colour : undefined,
+                borderColor: aimed ? AIMED : active ? colour : ink,
+                color: ink,
+              }}
+              className={`${PILL} ${active ? '' : 'bg-transparent'}`}
             >
               <button
                 type="button"
                 onClick={() => onSelect(active ? null : sprint.id)}
                 aria-pressed={active}
-                title={`${range} · ${milestoneName(sprint.milestoneId)}`}
+                title={`${sprint.startDate} → ${sprintEnd(sprint)} · ${milestoneName(sprint.milestoneId)}`}
                 className="px-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-primary"
               >
                 {label}
               </button>
 
-              <span
-                aria-hidden="true"
-                className={`w-px ${active ? 'bg-surface-card/40' : 'bg-line'}`}
-              />
+              {/* currentColor, so the rule matches whichever state the pill
+                  is in without a second branch. */}
+              <span aria-hidden="true" className="h-full w-px bg-current opacity-40" />
 
               <button
                 type="button"
-                onClick={() => onEdit(sprint)}
-                aria-label={`Edit ${label}`}
-                title={`Edit ${label}`}
-                className="flex items-center px-1.5 opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-primary"
+                onClick={() => (active ? onEdit(sprint) : onDelete(sprint))}
+                aria-label={`${active ? 'Edit' : 'Delete'} ${label}`}
+                title={`${active ? 'Edit' : 'Delete'} ${label}`}
+                className="flex h-full items-center px-1.5 opacity-80 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-primary"
               >
-                <Icon name="pencil" className="h-3 w-3" />
+                <Icon name={active ? 'pencil' : 'close'} className="h-3 w-3" />
               </button>
             </span>
           );
@@ -117,8 +218,8 @@ export default function SprintsRow({
       <button
         type="button"
         onClick={onAdd}
-        aria-label={`Add a sprint to ${milestoneName(activeMilestone)}`}
-        title={`Add a sprint to ${milestoneName(activeMilestone)}`}
+        aria-label={addLabel}
+        title={addLabel}
         className="relative z-10 mr-2 shrink-0 rounded-full p-1 text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
       >
         <Icon name="plus" className="h-4 w-4" />

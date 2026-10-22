@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Avatar from './Avatar';
 import CollapsibleSection from './CollapsibleSection';
 import Icon from './Icon';
 import MemberTasksDialog from './MemberTasksDialog';
+import ScrollEdge, { useScrollEdges } from './ScrollEdge';
 import Switch from './Switch';
 import { STAGES, STATUS_DOT } from '../constants';
 import { byUrgency, dueState } from '../dueState';
@@ -17,8 +18,6 @@ import type { Task, TeamMember } from '../types';
  */
 const VISIBLE = 2;
 
-const CHEVRON = { left: 'M15 18l-6-6 6-6', right: 'M9 18l6-6-6-6' };
-
 // Shared by the real pills and their invisible stand-ins, so the space a
 // placeholder reserves is exactly the space a pill would occupy. Every variant
 // carries `border`, so the 1px never changes the row height between them.
@@ -29,39 +28,6 @@ const PILL = `${PILL_BASE} border-line`;
 
 /** Same metrics, no outline: for copy that is not a control. */
 const PILL_QUIET = `${PILL_BASE} border-transparent`;
-
-/** Fade plus a scroll button, shown only on an end that actually has more past it. */
-function ScrollEdge({ side, onScroll }: { side: 'left' | 'right'; onScroll: () => void }) {
-  return (
-    <div
-      className={`pointer-events-none absolute bottom-2 top-0 flex w-16 items-center ${
-        side === 'left'
-          ? 'left-0 justify-start bg-gradient-to-r'
-          : 'right-0 justify-end bg-gradient-to-l'
-      } from-surface-page`}
-    >
-      <button
-        type="button"
-        onClick={onScroll}
-        aria-label={`Scroll team list ${side}`}
-        className="pointer-events-auto rounded-full border border-line bg-surface-card p-1 text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d={CHEVRON[side]} />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 // REQUIREMENTS 4.D — who is holding what right now. "Active" is everything that
 // is not Done; a finished task is no longer being driven.
@@ -103,26 +69,7 @@ export default function DrivingStrip({
   const free = team.length - driving;
 
   const scrollerRef = useRef<HTMLUListElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
-
-  function syncEdges() {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    // 1px of slack: fractional scroll positions never land exactly on the end.
-    setEdges({ left: el.scrollLeft > 1, right: el.scrollLeft < max - 1 });
-  }
-
-  // Overflow depends on the container's width as much as the team's size, so
-  // watch for resizes rather than only recomputing when members change.
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    syncEdges();
-    const observer = new ResizeObserver(syncEdges);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [team.length]);
+  const { edges, sync: syncEdges } = useScrollEdges(scrollerRef, [team.length]);
 
   function scrollBy(direction: 1 | -1) {
     scrollerRef.current?.scrollBy({ left: direction * 280, behavior: 'smooth' });
@@ -342,8 +289,12 @@ export default function DrivingStrip({
           })}
         </ul>
 
-        {edges.left && <ScrollEdge side="left" onScroll={() => scrollBy(-1)} />}
-        {edges.right && <ScrollEdge side="right" onScroll={() => scrollBy(1)} />}
+        {edges.left && (
+          <ScrollEdge side="left" fade="from-surface-page" onScroll={() => scrollBy(-1)} />
+        )}
+        {edges.right && (
+          <ScrollEdge side="right" fade="from-surface-page" onScroll={() => scrollBy(1)} />
+        )}
       </div>
 
       {openMember !== null && (
