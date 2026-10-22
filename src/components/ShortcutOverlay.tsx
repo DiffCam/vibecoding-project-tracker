@@ -1,4 +1,4 @@
-import { MODIFIER_LABEL } from '../useModifierKey';
+import { ALT_LABEL, MODIFIER_LABEL } from '../useModifierKey';
 
 const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
@@ -8,6 +8,20 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       [`${MODIFIER_LABEL} hold`, 'This list'],
       ['← → ↑ ↓', 'Move between cards'],
       ['↵', 'Open the focused task'],
+    ],
+  },
+  {
+    // Option, not Cmd: the Cmd tap still has to jump to the board and place a
+    // carried card while a group is being picked.
+    title: 'Selecting a group',
+    rows: [
+      [ALT_LABEL, 'Select mode on and off'],
+      ['Space', 'Take or return a card'],
+      ['← → ↑ ↓', 'Move between cards'],
+      ['↑', 'Lift the pile out of the cards'],
+      ['← →', 'Pick a lane, then ↑ for a sprint'],
+      ['Space', 'Drop the pile there'],
+      ['Esc', 'Back out, then leave the mode'],
     ],
   },
   {

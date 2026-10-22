@@ -18,6 +18,7 @@ import TaskModal from './components/TaskModal';
 import type { NewTaskDefaults } from './components/TaskModal';
 import SearchDialog, { FilterTag } from './components/SearchDialog';
 import SprintForm from './components/SprintForm';
+import SelectionStack, { stackSpread, STACK_LAYERS } from './components/SelectionStack';
 import SprintsRow from './components/SprintsRow';
 import ShortcutOverlay from './components/ShortcutOverlay';
 import TeamDialog from './components/TeamDialog';
@@ -37,11 +38,20 @@ import { CHIP_SCALE, useCardDrag } from './useCardDrag';
 import type { DropTarget } from './useCardDrag';
 import { useFlip } from './useFlip';
 import { useLocalStorage } from './useLocalStorage';
-import { isTyping, MODIFIER_LABEL, useModifierKey } from './useModifierKey';
+import {
+  ALT_LABEL,
+  isTyping,
+  MODIFIER_LABEL,
+  useBareKeyTap,
+  useModifierKey,
+} from './useModifierKey';
 import type { Anchor, Milestone, Sprint, Task, TaskStatus, TeamMember } from './types';
 
 /** Breathing room between a carried card and the pill it is aimed at. */
 const CHIP_GAP = 6;
+
+/** Where the pile of selected cards rests, inset from the board's corner. */
+const STACK_INSET = 12;
 
 /** Lanes alternate between the two recessed tones. */
 const laneTone = (index: number) =>
@@ -111,7 +121,9 @@ export default function App() {
   const boardRef = useRef<HTMLDivElement>(null);
   const newTaskRef = useRef<HTMLButtonElement>(null);
 
-  const { session: drag, overlayRef, bindCard } = useCardDrag(commitDrop);
+  const { session: drag, overlayRef, bindCard } = useCardDrag((id, target) =>
+    commitDrop([id], target)
+  );
   const draggedTask = drag ? tasks.find((task) => task.id === drag.taskId) : undefined;
   useFlip(boardRef);
 
@@ -157,6 +169,22 @@ export default function App() {
   );
   const sprintNos = sprintNumbers(sprints);
   const [pendingSprintDelete, setPendingSprintDelete] = useState<Sprint | null>(null);
+
+  /**
+   * Select mode: Space takes and returns cards instead of picking one up.
+   *
+   * It needs a mode because Space is already the single-card grab and there is
+   * no second key to share. `selected` is oldest-first, so the newest — the one
+   * on top of the pile — is the last entry.
+   */
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  /**
+   * Where the pile is aimed, or null while it is still following the cursor
+   * around the cards. A status target is a lane's drop box, so a group can be
+   * moved between columns as well as filed into a sprint.
+   */
+  const [stackAim, setStackAim] = useState<DropTarget | null>(null);
 
   // Which tab is open is a view, not data — it resets to All on reload rather
   // than landing you on a near-empty board with no memory of why. Same for the
@@ -285,10 +313,10 @@ export default function App() {
   //
   // shortcut: a task holds one sprint, so dropping on a pill moves it out of
   // any sprint it was already in. Revisit when tasks need to carry over.
-  function writeDrop(id: string, target: DropTarget) {
+  function writeDrop(ids: string[], target: DropTarget) {
     setTasks((prev) =>
       prev.map((task) =>
-        task.id !== id
+        !ids.includes(task.id)
           ? task
           : target.kind === 'status'
             ? { ...task, status: target.id }
@@ -314,16 +342,29 @@ export default function App() {
   const milestoneName = (task: Task) =>
     milestones.find((milestone) => milestone.id === taskMilestone(task, sprints))?.name ?? '';
 
-  const visibleTasks = tasks.filter(
+  // Split in two so the sprint pills can be counted. This stage is everything
+  // the search and the milestone tab allow, before a sprint selection narrows
+  // it further — which makes a pill's count exactly the number of cards you
+  // get by clicking it, rather than a total that disagrees with the board.
+  const scopedTasks = tasks.filter(
     (task) =>
       matchesFilters(task, filters, milestoneName(task)) &&
       // Tasks stored before milestones existed read back as undefined.
-      (activeMilestone === null || taskMilestone(task, sprints) === activeMilestone) &&
-      (activeSprint === null ||
-        (activeSprint === UNSCHEDULED
-          ? (task.sprintId ?? null) === null
-          : (task.sprintId ?? null) === activeSprint))
+      (activeMilestone === null || taskMilestone(task, sprints) === activeMilestone)
   );
+
+  const visibleTasks = scopedTasks.filter(
+    (task) =>
+      activeSprint === null ||
+      (activeSprint === UNSCHEDULED
+        ? (task.sprintId ?? null) === null
+        : (task.sprintId ?? null) === activeSprint)
+  );
+
+  const sprintCounts = scopedTasks.reduce<Record<string, number>>((counts, task) => {
+    if (task.sprintId !== null) counts[task.sprintId] = (counts[task.sprintId] ?? 0) + 1;
+    return counts;
+  }, {});
 
   function focusCard(id: string) {
     boardRef.current?.querySelector<HTMLElement>(`[data-card-id="${id}"]`)?.focus();
@@ -394,20 +435,44 @@ export default function App() {
    * front of you and nothing is written until Save.
    */
   const [pendingSprintMove, setPendingSprintMove] = useState<{
-    id: string;
+    ids: string[];
     target: DropTarget;
+    /** How many of them change milestone, and where the first one goes. */
+    moving: number;
     from: string | null;
     to: string | null;
   } | null>(null);
 
-  function commitDrop(id: string, target: DropTarget) {
-    const task = tasks.find((one) => one.id === id);
-    if (target.kind === 'sprint' && task) {
-      const from = taskMilestone(task, sprints);
-      const to = taskMilestone({ ...task, sprintId: target.id }, sprints);
-      if (from !== to) return setPendingSprintMove({ id, target, from, to });
+  /**
+   * The one drop path, whether one card is in the air or a whole pile.
+   *
+   * Returns false when it has asked for confirmation instead of writing, so
+   * the caller can hold on to its selection until the answer comes back.
+   */
+  function commitDrop(ids: string[], target: DropTarget): boolean {
+    if (target.kind === 'sprint') {
+      const moved = ids
+        .map((id) => tasks.find((one) => one.id === id))
+        .filter((task): task is Task => task !== undefined)
+        .map((task) => ({
+          from: taskMilestone(task, sprints),
+          to: taskMilestone({ ...task, sprintId: target.id }, sprints),
+        }))
+        .filter((change) => change.from !== change.to);
+
+      if (moved.length > 0) {
+        setPendingSprintMove({
+          ids,
+          target,
+          moving: moved.length,
+          from: moved[0].from,
+          to: moved[0].to,
+        });
+        return false;
+      }
     }
-    writeDrop(id, target);
+    writeDrop(ids, target);
+    return true;
   }
 
   const milestoneTitle = (id: string | null) =>
@@ -434,7 +499,7 @@ export default function App() {
     if (current.target.kind === 'sprint' && carriedTo && task) {
       setLanding({ task: { ...task, sprintId: current.target.id }, at: carriedTo });
     }
-    commitDrop(current.id, current.target);
+    commitDrop([current.id], current.target);
     setGrabbed(null);
   }
 
@@ -466,20 +531,140 @@ export default function App() {
     // rather than from a stale position.
   }, [grabbed, carriedTo]);
 
+  /**
+   * A click ends select mode.
+   *
+   * Nothing is written, so unlike an interrupted carry there is nothing to
+   * place — reaching for the mouse just means the keyboard flow is over, and
+   * leaving a live mode behind would make the next Space do the wrong thing.
+   * Not on blur, though: a selection is worth keeping across a tab away.
+   */
+  useEffect(() => {
+    if (!selectMode) return;
+    const leave = () => {
+      setSelectMode(false);
+      setStackAim(null);
+      if (selected.length > 0) {
+        setSelected([]);
+        setToast('Selection discarded.');
+      }
+    };
+    window.addEventListener('pointerdown', leave);
+    return () => window.removeEventListener('pointerdown', leave);
+  }, [selectMode, selected]);
+
   // Tap Cmd/Ctrl to jump straight to the board — Tab would take eight presses
   // to get past the header, deliverables and driving strip. Mid-carry the same
   // tap places the card, so the one key both picks up the thread and commits.
+  function focusBoard() {
+    if ((document.activeElement as HTMLElement | null)?.dataset.cardId) return; // already there
+    const first = STAGES.flatMap((stage) =>
+      visibleTasks.filter((task) => task.status === stage.id)
+    )[0];
+    if (first) focusCard(first.id);
+  }
+
   useModifierKey({
     onTap: () => {
       if (grabbed) return placeGrabbed(grabbed);
-      if ((document.activeElement as HTMLElement | null)?.dataset.cardId) return; // already there
-      const first = STAGES.flatMap((stage) =>
-        visibleTasks.filter((task) => task.status === stage.id)
-      )[0];
-      if (first) focusCard(first.id);
+      focusBoard();
     },
     onHoldChange: setShowShortcuts,
   });
+
+  /**
+   * Option toggles select mode.
+   *
+   * A different key from the Cmd/Ctrl tap on purpose: that one jumps to the
+   * board and places a carried card, both of which still have to work while
+   * picking a group.
+   */
+  useBareKeyTap('Alt', () => {
+    const leaving = selectMode;
+    setSelectMode(!leaving);
+    setSelected([]);
+    setStackAim(null);
+    setGrabbed(null); // a single carry and a group selection cannot both be live
+    if (!leaving) focusBoard();
+    setToast(
+      leaving
+        ? 'Select mode off.'
+        : 'Select mode · Space picks cards · ↑ to the sprints · Space drops · Esc exits'
+    );
+  });
+
+  /**
+   * Where the pile sits: over the pill it is aimed at, or resting at the
+   * board's top-left corner while cards are still being picked.
+   *
+   * Measured off the newest selection, so the pile is the size of a real card
+   * on this board rather than a guess, and re-measured when the aim moves
+   * because a pill's position depends on how far the strip has scrolled.
+   */
+  const [stackAt, setStackAt] = useState<{ left: number; top: number; width: number } | null>(
+    null
+  );
+
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!selectMode || selected.length === 0 || !board) {
+      setStackAt(null);
+      return;
+    }
+    // Newest first, but the newest may have been filtered off the board since
+    // it was picked — so take the most recent one still rendered.
+    const card = [...selected]
+      .reverse()
+      .map((id) => board.querySelector<HTMLElement>(`[data-flip-id="${id}"]`))
+      .find((found) => found !== null);
+    if (!card) {
+      setStackAt(null);
+      return;
+    }
+    const from = card.getBoundingClientRect();
+
+    // The pile is positioned by its top card, so its own depth has to come out
+    // of the height or the back layers would hang over whatever it is aimed at.
+    const height = from.height * CHIP_SCALE + stackSpread(selected.length);
+
+    // Not yet aimed anywhere: ride along with the cursor, just above the
+    // focused card's top-left. Above rather than over it, so the card you are
+    // about to take stays readable.
+    if (stackAim === null) {
+      const cursor = highlighted
+        ? board.querySelector<HTMLElement>(`[data-flip-id="${highlighted}"]`)
+        : null;
+      const box = (cursor ?? board).getBoundingClientRect();
+      setStackAt(
+        cursor
+          ? { left: box.left, top: box.top - CHIP_GAP - height, width: from.width }
+          : // Nothing focused, so fall back to the board's own corner.
+            { left: box.left + STACK_INSET, top: box.top + STACK_INSET, width: from.width }
+      );
+      return;
+    }
+
+    const onto =
+      stackAim.kind === 'sprint'
+        ? document.querySelector<HTMLElement>(`[data-drop-sprint="${stackAim.id ?? ''}"]`)
+        : document.querySelector<HTMLElement>(`[data-lane-drop="${stackAim.id}"]`);
+    if (!onto) {
+      setStackAt(null);
+      return;
+    }
+    onto.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const target = onto.getBoundingClientRect();
+    setStackAt({
+      left: target.left + target.width / 2 - (from.width * CHIP_SCALE) / 2,
+      // A pill is thin, so the pile sits above it; a lane's drop box has room,
+      // so the pile sits inside it where the label would be.
+      top:
+        stackAim.kind === 'sprint'
+          ? target.top - CHIP_GAP - height
+          : target.top + target.height / 2 - height / 2,
+      width: from.width,
+    });
+  }, [selectMode, selected, stackAim, highlighted, sprints, activeMilestone]);
 
   // The pills a carried card can be dropped on, left to right, matching what
   // the sprints row is showing. "All" is a filter rather than a sprint, so it
@@ -523,6 +708,84 @@ export default function App() {
     );
     const at = locate(columns, id);
     if (at === null) return;
+
+    // Select mode. Two zones, same shape as the single-card carry: on the
+    // board the arrows move focus and Space takes or returns a card, in the
+    // strip the arrows walk the pills and Space drops everything held.
+    if (selectMode) {
+      event.preventDefault();
+
+      if (key === 'Escape') {
+        // Two stages: back out of the strip first, keeping the selection. A
+        // stray Escape should not cost a pile of a dozen cards.
+        if (stackAim !== null) {
+          setStackAim(null);
+          return;
+        }
+        setSelectMode(false);
+        setSelected([]);
+        setToast(selected.length > 0 ? 'Selection discarded.' : 'Select mode off.');
+        return;
+      }
+
+      if (key === ' ') {
+        if (stackAim === null) {
+          setSelected((prev) =>
+            prev.includes(id) ? prev.filter((one) => one !== id) : [...prev, id]
+          );
+          return;
+        }
+        if (selected.length === 0) return;
+        const count = `${selected.length} task${selected.length === 1 ? '' : 's'}`;
+        const where =
+          stackAim.kind === 'status'
+            ? `moved to ${STAGES.find((stage) => stage.id === stackAim.id)?.label}`
+            : stackAim.id === null
+              ? 'taken out of their sprint'
+              : `added to Sprint ${sprintNos[stackAim.id]}`;
+        // Only clear once it is actually written — a pending confirmation can
+        // still be cancelled, and the pile has to survive that.
+        if (commitDrop(selected, stackAim)) {
+          setSelected([]);
+          setStackAim(null);
+          setToast(`${count} ${where}.`);
+        }
+        return;
+      }
+
+      // Three zones stacked vertically — cards, the lanes' drop boxes, then the
+      // sprints row — so one axis covers both kinds of group move. carryTo
+      // already walks the top two; only dropping back into the cards is ours.
+      if (stackAim !== null) {
+        if (stackAim.kind === 'status' && key === 'ArrowDown') {
+          setStackAim(null);
+          return;
+        }
+        const newest = tasks.find((task) => task.id === selected[selected.length - 1]);
+        const next = carryTo(stackAim, key, {
+          lanes: STAGES.map((stage) => stage.id),
+          strip: sprintDropTargets,
+          // Coming down from the strip lands on the lane the cursor is in,
+          // which is where the pile left from.
+          lane:
+            stackAim.kind === 'status'
+              ? STAGES.findIndex((stage) => stage.id === stackAim.id)
+              : at.column,
+          held: newest?.sprintId ?? null,
+        });
+        if (next) setStackAim(next);
+        return;
+      }
+
+      const next = navigate(columns, id, key);
+      if (next) return focusCard(next);
+      // Nothing above to move to, so Up lifts the pile out of the cards and
+      // onto this lane's drop box.
+      if (key === 'ArrowUp' && selected.length > 0) {
+        setStackAim({ kind: 'status', id: STAGES[at.column].id });
+      }
+      return;
+    }
 
     if (grabbed?.id === id) {
       const target = grabbed.target;
@@ -790,7 +1053,7 @@ export default function App() {
               <Kbd>↑</Kbd>
               <Kbd>↓</Kbd> move · <Kbd>Space</Kbd> grab, <Kbd>↑</Kbd> to a sprint,{' '}
               <Kbd>Space</Kbd>/<Kbd>{MODIFIER_LABEL}</Kbd> place · <Kbd>Esc</Kbd> cancel ·{' '}
-              <Kbd>↵</Kbd> open · <Kbd>M</Kbd> next milestone
+              <Kbd>↵</Kbd> open · <Kbd>{ALT_LABEL}</Kbd> select many · <Kbd>M</Kbd> next milestone
             </p>
           </div>
 
@@ -841,6 +1104,7 @@ export default function App() {
               activeSprint={activeSprint}
               onSelect={setActiveSprint}
               colors={sprintColors}
+              counts={sprintCounts}
               dark={theme === 'dark'}
               dropTarget={grabbed?.target ?? drag?.over}
               onAdd={() => setEditingSprint('new')}
@@ -928,6 +1192,32 @@ export default function App() {
                     </button>
                   </div>
 
+                  {/* Only in select mode, and for every lane at once, so the
+                      cards shift by the same amount in all four rather than
+                      one lane jumping when a pile happens to point at it. The
+                      pile parks inside this box, so its label steps aside. */}
+                  {selectMode && (
+                    <div
+                      data-lane-drop={stage.id}
+                      // border-text-muted, not border-line: `line` is sized for
+                      // a card on the card surface and comes out at 1.01:1 on
+                      // the odd lanes, which is no border at all. The muted ink
+                      // is monochrome and clears 3:1 on every lane in both
+                      // themes, so a hairline is enough to read.
+                      className={`mb-2.5 flex h-16 items-center justify-center rounded-lg border border-dashed text-sm transition-colors ${
+                        stackAim?.kind === 'status' && stackAim.id === stage.id
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary'
+                          : 'border-text-muted text-text-muted'
+                      }`}
+                    >
+                      {stackAim?.kind === 'status' && stackAim.id === stage.id
+                        ? ''
+                        : selected.length > 0
+                          ? `Move ${selected.length} here`
+                          : 'Move here'}
+                    </div>
+                  )}
+
                   {stageTasks.length === 0 ? (
                     // The onboarding line only makes sense when the whole board
                     // is empty; a lane that is merely empty is just empty.
@@ -962,7 +1252,7 @@ export default function App() {
                             lifted={
                               drag?.taskId === task.id
                                 ? 'moving'
-                                : liftedId === task.id
+                                : liftedId === task.id || selected.includes(task.id)
                                   ? 'filing'
                                   : landing?.task.id === task.id
                                     ? 'landing'
@@ -1011,17 +1301,24 @@ export default function App() {
           title="Change this task's milestone?"
           confirmLabel="Change"
           message={(() => {
-            const { target, from, to } = pendingSprintMove;
-            const where = `from ${milestoneTitle(from)} to ${milestoneTitle(to)}`;
-            return target.kind === 'sprint' && target.id === null
-              ? `Taking this task out of its sprint moves it ${where}, back to the milestone set on the task itself.`
-              : `Sprint ${sprintNos[target.id as string]} is filed under ${milestoneTitle(
-                  to
-                )}, so this task moves ${where}. The milestone set on the task itself is kept, and comes back if you take it out of the sprint.`;
+            const { target, from, to, moving } = pendingSprintMove;
+            // One card can name where it came from; a pile cannot, since they
+            // may be coming from different milestones.
+            const subject = moving === 1 ? 'this task' : `${moving} of these tasks`;
+            const where =
+              moving === 1 ? ` from ${milestoneTitle(from)} to ${milestoneTitle(to)}` : '';
+            if (target.kind === 'sprint' && target.id === null) {
+              return `Taking ${subject} out of its sprint moves it${where || ` to ${milestoneTitle(to)}`}, back to the milestone set on the task itself.`;
+            }
+            return `Sprint ${sprintNos[target.id as string]} is filed under ${milestoneTitle(
+              to
+            )}, so ${subject} ${moving === 1 ? 'moves' : 'move'}${where || ` to ${milestoneTitle(to)}`}. The milestone saved on each task is kept, and comes back if you take it out of the sprint.`;
           })()}
           onConfirm={() => {
-            writeDrop(pendingSprintMove.id, pendingSprintMove.target);
+            writeDrop(pendingSprintMove.ids, pendingSprintMove.target);
             setPendingSprintMove(null);
+            setSelected([]); // no-ops for a single carried card
+            setStackAim(null);
           }}
           onCancel={() => setPendingSprintMove(null)}
         />
@@ -1224,6 +1521,28 @@ export default function App() {
               selection={null}
             />
           </div>,
+          document.body
+        )}
+
+      {/* The cards held in select mode. Rests at the board's corner while you
+          pick, then slides over whichever pill the arrows aim at. */}
+      {stackAt &&
+        createPortal(
+          <SelectionStack
+            held={[...selected]
+              .reverse()
+              .slice(0, STACK_LAYERS)
+              .map((id) => tasks.find((task) => task.id === id))
+              .filter((task): task is Task => task !== undefined)}
+            total={selected.length}
+            at={stackAt}
+            tagColors={tagColors}
+            sprintOf={(task) =>
+              sprintBadge(
+                stackAim === null ? task : { ...task, sprintId: stackAim.id }
+              )
+            }
+          />,
           document.body
         )}
 

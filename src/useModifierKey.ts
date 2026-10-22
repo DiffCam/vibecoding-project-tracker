@@ -5,6 +5,9 @@ const MODIFIER = /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Meta' : 'Control
 
 export const MODIFIER_LABEL = MODIFIER === 'Meta' ? '⌘' : 'Ctrl';
 
+/** Same key, different glyph: Option on a Mac, Alt everywhere else. */
+export const ALT_LABEL = MODIFIER === 'Meta' ? '⌥' : 'Alt';
+
 export function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
@@ -34,6 +37,57 @@ export function shouldArm(
   // The modifier itself is reported held during its own keydown — only the
   // *other* one disqualifies the press.
   return modifier === 'Meta' ? !event.ctrlKey : !event.metaKey;
+}
+
+/**
+ * Fires when `key` is pressed and released on its own.
+ *
+ * Separate from useModifierKey below rather than folded into it: that one's
+ * whole job is telling a tap from a hold so the cheat sheet can appear, and it
+ * is wired to Cmd/Ctrl specifically. This is the simpler case — one gesture,
+ * any key.
+ *
+ * Still needs that hook's two guards. Any other key cancels, so Alt+Tab and
+ * Alt+letter do not count as a tap; and blur resets, because Alt+Tab leaves
+ * the page with the key down and its keyup is never delivered.
+ */
+export function useBareKeyTap(key: string, onTap: () => void) {
+  const armed = useRef(false);
+  const handler = useRef(onTap);
+  handler.current = onTap;
+
+  useEffect(() => {
+    const reset = () => {
+      armed.current = false;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== key ||
+        event.repeat ||
+        isTyping(event.target) ||
+        document.querySelector('dialog[open]') !== null
+      ) {
+        return reset();
+      }
+      armed.current = true;
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== key) return;
+      if (armed.current) handler.current();
+      armed.current = false;
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', reset);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', reset);
+    };
+  }, [key]);
 }
 
 /** How long the modifier must be held before it stops being a tap. */

@@ -66,6 +66,7 @@ export default function SprintsRow({
   sprints,
   milestones,
   colors,
+  counts,
   dark,
   dropTarget,
   activeMilestone,
@@ -79,6 +80,9 @@ export default function SprintsRow({
   milestones: Milestone[];
   /** Resolved per-sprint colours, keyed by id. */
   colors: Record<string, string>;
+  /** Tasks per sprint id, already narrowed by the search and the open tab, so
+   *  each number is what clicking that pill shows. Absent means none. */
+  counts: Record<string, number>;
   /** Which way to nudge an outlined chip's colour so it clears AA. */
   dark: boolean;
   /** Where a card currently in the air would land, so that pill can light up. */
@@ -148,6 +152,7 @@ export default function SprintsRow({
           const colour = colors[sprint.id];
           const ink = active ? TAG_INK : accentInk(colour, dark);
           const aimed = targeted(sprint.id);
+          const count = counts[sprint.id] ?? 0;
 
           return (
             // One pill, two controls, divided by a rule running its full
@@ -173,10 +178,20 @@ export default function SprintsRow({
                 type="button"
                 onClick={() => onSelect(active ? null : sprint.id)}
                 aria-pressed={active}
-                title={`${sprint.startDate} → ${sprintEnd(sprint)} · ${milestoneName(sprint.milestoneId)}`}
+                // The count is the one extra fact on the pill, so it is said
+                // properly here rather than left as a bare digit to a reader.
+                aria-label={`${label}, ${count} task${count === 1 ? '' : 's'}`}
+                title={`${count} task${count === 1 ? '' : 's'} · ${sprint.startDate} → ${sprintEnd(sprint)} · ${milestoneName(sprint.milestoneId)}`}
                 className="px-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-primary"
               >
                 {label}
+                {/* currentColor at reduced opacity, so it sits under the label
+                    in both the outlined and the filled state without a second
+                    colour to pick. Shown at zero too — an empty sprint is
+                    worth noticing, and a blank would read as missing. */}
+                <span aria-hidden="true" className="ml-1 opacity-60">
+                  · {count}
+                </span>
               </button>
 
               {/* currentColor, so the rule matches whichever state the pill

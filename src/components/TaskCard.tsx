@@ -91,17 +91,23 @@ export default function TaskCard({
   const state = dueState(task);
   const countdown = dueCountdown(task);
 
+  // `moving` means the card is genuinely somewhere else, so nothing about it
+  // should show — its focus ring included. A ghost is still sitting here, so
+  // its ring stays.
+  const ring = lifted === 'moving' ? null : selection;
+
   return (
-    // A wrapper, because the badge has to overhang the card's own
-    // overflow-hidden — which exists to clip the left rail to the rounded
-    // corners. The lift and the outline move out here with it, so the badge
-    // tilts along with the card rather than staying flat on top of it, and
-    // rounded-lg keeps that shadow and outline on the card's corners.
-    <div
-      className={`relative rounded-lg ${lifted ? LIFTED[lifted] : ''} ${
-        selection ? SELECTION[selection] : ''
-      }`}
-    >
+    // Two wrappers rather than one, because `opacity` dims an element's outline
+    // along with its content: a focused ghost showed a 30% focus ring. The ring
+    // and the lift go on separate layers so the ring stays solid.
+    //
+    // They are outside the card at all because the badge has to overhang its
+    // overflow-hidden, which exists to clip the left rail to the rounded
+    // corners. Keeping the transform out here too means the badge tilts along
+    // with the card instead of staying flat on top of it, and rounded-lg keeps
+    // the shadow and outline on the card's corners.
+    <div className={`relative rounded-lg ${ring ? SELECTION[ring] : ''}`}>
+    <div className={`relative rounded-lg ${lifted ? LIFTED[lifted] : ''}`}>
     <div
       onPointerDown={onPointerDown}
       className={`relative flex touch-none select-none overflow-hidden rounded-lg border border-line bg-surface-card ${
@@ -221,6 +227,7 @@ export default function TaskCard({
     >
       {badge?.label}
     </span>
+    </div>
     </div>
   );
 }
