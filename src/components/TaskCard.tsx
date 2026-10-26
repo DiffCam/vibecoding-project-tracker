@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { DUE_PILL, TYPE_ACCENT } from '../constants';
-import { dueCountdown, dueState } from '../dueState';
+import { dueCountdown, dueRail, dueState } from '../dueState';
 import Avatar from './Avatar';
 import Icon from './Icon';
 import Logo from './Logo';
@@ -89,7 +89,8 @@ export default function TaskCard({
 
   const accent = TYPE_ACCENT[task.type];
   const state = dueState(task);
-  const countdown = dueCountdown(task);
+  const countdown = dueCountdown(task); // magnitude, for the spoken label
+  const rail = dueRail(task); // signed, for the glance
 
   // `moving` means the card is genuinely somewhere else, so nothing about it
   // should show — its focus ring included. A ghost is still sitting here, so
@@ -144,7 +145,7 @@ export default function TaskCard({
               aria-hidden="true"
               className={`flex flex-1 rotate-180 items-center justify-center py-1 text-xs font-medium leading-none [writing-mode:vertical-rl] ${DUE_PILL[state]}`}
             >
-              {countdown}
+              {rail}
             </span>
           )
         )}

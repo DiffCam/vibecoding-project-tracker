@@ -35,9 +35,8 @@ export function dueState(task: Task, now: Date = new Date()): DueState {
 }
 
 /**
- * The countdown for the card's rail: hours under a day either way, days
- * beyond. Overdue reads as magnitude — the colour says which side of the line
- * it falls on, so the number does not need a sign.
+ * How long until due, or how long since. Magnitude only — `dueRail` adds the
+ * sign for display, and `dueBadge` says it in words instead.
  */
 export function dueCountdown(task: Task, now: Date = new Date()): string | null {
   if (task.dueDate === null || task.status === 'done') return null;
@@ -49,6 +48,29 @@ export function dueCountdown(task: Task, now: Date = new Date()): string | null 
       : [Math.floor(size / DAY), 'day'];
 
   return `${count} ${unit}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * A true minus (U+2212), not a hyphen-minus.
+ *
+ * Exported so the self-check cannot quietly compare against the wrong one —
+ * the two are near-identical in source but the hyphen is noticeably shorter
+ * and sits lower, which is what made it easy to miss on the rail.
+ */
+export const MINUS = '\u2212';
+
+/**
+ * The countdown as the card's rail shows it, signed when past.
+ *
+ * Unsigned, red and green say the same words — "3 days" sits on either side of
+ * the line — leaving colour as the only thing telling them apart. Red against
+ * green is the pair most people with colour-blindness cannot separate, so the
+ * minus does the work the colour was doing on its own.
+ */
+export function dueRail(task: Task, now: Date = new Date()): string | null {
+  const count = dueCountdown(task, now);
+  if (count === null) return null;
+  return dueState(task, now) === 'overdue' ? `${MINUS}${count}` : count;
 }
 
 /** The longer label, for places with room for a sentence rather than a rail. */
