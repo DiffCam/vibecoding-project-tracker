@@ -15,6 +15,7 @@ const MAX_NAME = 40;
 export default function MilestoneTabs({
   milestones,
   activeId,
+  aimedId,
   onSelect,
   onAdd,
   onDelete,
@@ -22,6 +23,9 @@ export default function MilestoneTabs({
 }: {
   milestones: Milestone[];
   activeId: string | null;
+  /** The tab a held sprint is aimed at, if any — `undefined` means none is.
+   *  Distinct from null, which is the "All" tab. */
+  aimedId?: string | null;
   onSelect: (id: string | null) => void;
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
@@ -52,12 +56,20 @@ export default function MilestoneTabs({
     <div className="flex items-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {tabs.map((tab) => {
         const active = tab.id === activeId;
+        const aimed = aimedId !== undefined && tab.id === aimedId;
         // A shell rather than one button: the tab holds two controls, and a
         // delete button nested inside a select button is invalid HTML.
         return (
           <div
             key={tab.id ?? 'all'}
+            data-milestone-drop={tab.id ?? ''}
+            // A dashed outline drawn inside the tab, matching a card's focus
+            // ring so one shape means "the cursor is here" everywhere. Inset
+            // rather than offset because a tab's whole shape is its attachment
+            // to the board, and an outline outside it would fight that.
             className={`flex shrink-0 items-center rounded-t-lg text-sm ${
+              aimed ? 'outline-2 outline-dashed -outline-offset-2 outline-brand-primary' : ''
+            } ${
               active
                 ? 'bg-surface-sunken py-1 font-medium text-text-primary'
                 : // mb-px leaves a hairline of page colour under inactive tabs. They

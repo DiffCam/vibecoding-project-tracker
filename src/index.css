@@ -53,6 +53,20 @@
                                    the rail band is now "within two days" */
   --due-overdue: 215 0 21;      /* #D70015 — deeper than DESIGN.md's #FF3B30 so
                                    white sits on it at 5.4:1 instead of 3.6:1 */
+  /* The vibe meter. The chart's own palette is built for a white poster — the
+     yellow is 1.62:1 here — so each hue is darkened until it clears 4.5:1 as
+     TEXT, which is what lets the phrase itself be coloured and the chip lose
+     its fill. Closest pair is ΔE 31, so they stay tellable apart. */
+  --vibe-ball: 123 45 66;       /* #7B2D42 · 8.77:1 */
+  --vibe-back: 136 109 17;      /* #886D11 · 4.75:1 */
+  --vibe-over: 96 113 139;      /* #60718B · 4.76:1 */
+  --vibe-vibing: 82 122 93;     /* #527A5D · 4.68:1 */
+  --vibe-whatever: 179 89 6;    /* #B35906 · 4.63:1 */
+  /* The two corner zones. Close to their own quadrant on purpose — back and
+     letsgo are ΔE 4 apart and mean the same thing — while the nearest pair
+     that disagree are ΔE 27, which is the separation that matters. */
+  --vibe-letsgo: 143 108 16;    /* #8F6C10 · 4.66:1 */
+  --vibe-mom: 47 51 55;         /* #2F3337 · 12.21:1 */
 }
 
 :root.dark {
@@ -96,6 +110,15 @@
   --due-safe: 48 209 88;        /* #30D158 */
   --due-warning: 255 159 10;    /* #FF9F0A */
   --due-overdue: 215 0 21;      /* #D70015 — see light block */
+  /* Near enough the chart's own colours: on a near-black header they already
+     clear 4.5:1 as text, bar the maroon and the blue-grey, which are lifted. */
+  --vibe-ball: 196 94 122;      /* #C45E7A · 4.73:1 */
+  --vibe-back: 232 196 74;      /* #E8C44A · 11.25:1 */
+  --vibe-over: 110 129 155;     /* #6E819B · 4.78:1 */
+  --vibe-vibing: 127 169 138;   /* #7FA98A · 7.19:1 */
+  --vibe-whatever: 251 192 138; /* #FBC08A · 11.77:1 */
+  --vibe-letsgo: 212 160 23;    /* #D4A017 · 8.00:1 */
+  --vibe-mom: 118 128 138;      /* #76808A · 4.73:1 */
 }
 
 /* Entrance motion. Deliberately short — the board should be usable before you

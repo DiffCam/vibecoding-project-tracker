@@ -8,6 +8,35 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       [`${MODIFIER_LABEL} hold`, 'This list'],
       ['← → ↑ ↓', 'Move between cards'],
       ['↵', 'Open the focused task'],
+      ['↑', 'Up to the sprints row'],
+      ['↵', 'On a sprint pill, filter by it'],
+    ],
+  },
+  {
+    // Its own group because the arrows mean something different mid-carry:
+    // they aim the card rather than moving focus.
+    title: 'Carrying a card',
+    rows: [
+      ['Space', 'Pick up, then place'],
+      ['← →', 'Change lane'],
+      ['↑ ↓', 'In and out of the sprints row'],
+      [MODIFIER_LABEL, 'Place'],
+      ['Esc', 'Cancel'],
+    ],
+  },
+  {
+    // Not in select mode: moving one sprint is a single-item action, the same
+    // kind of thing as carrying one card.
+    title: 'Carrying a sprint',
+    rows: [
+      ['↑', 'From the cards to the sprints row'],
+      ['Space', 'Pick the sprint up'],
+      ['Space', 'On "No sprint", pick up an eraser'],
+      ['↑', 'On to the milestone tabs'],
+      ['Space', 'File it under that milestone'],
+      ['↓ ↓', 'Back down to the cards'],
+      ['Space', 'Add the focused task, keep holding'],
+      ['Esc', 'Put it back'],
     ],
   },
   {
@@ -22,18 +51,6 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['← →', 'Pick a lane, then ↑ for a sprint'],
       ['Space', 'Drop the pile there'],
       ['Esc', 'Back out, then leave the mode'],
-    ],
-  },
-  {
-    // Its own group because the arrows mean something different mid-carry:
-    // they aim the card rather than moving focus.
-    title: 'Carrying a card',
-    rows: [
-      ['Space', 'Pick up, then place'],
-      ['← →', 'Change lane'],
-      ['↑ ↓', 'In and out of the sprints row'],
-      [MODIFIER_LABEL, 'Place'],
-      ['Esc', 'Cancel'],
     ],
   },
   {
@@ -63,12 +80,15 @@ export default function ShortcutOverlay() {
       aria-hidden="true"
       className="anim-rise pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
     >
-      <div className="w-full max-w-md rounded-xl border border-line bg-surface-card p-6">
+      <div className="w-full max-w-2xl rounded-xl border border-line bg-surface-card p-6">
         <h2 className="mb-4 text-base font-semibold uppercase text-text-primary">
           Keyboard
         </h2>
 
-        <div className="space-y-5">
+        {/* Two columns: five groups in one would run off the bottom of a
+            laptop screen, and the overlay cannot scroll — it is inert and
+            disappears the moment the key comes up. */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-5">
           {GROUPS.map((group) => (
             <div key={group.title}>
               <p className="mb-2 font-mono text-xs text-text-muted">{group.title}</p>

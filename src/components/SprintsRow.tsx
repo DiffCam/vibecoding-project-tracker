@@ -10,13 +10,24 @@ import type { Milestone, Sprint } from '../types';
 // centre its own text, which is what left the fixed pills sitting high.
 // border-2 on every variant so the outlined and filled states are the same
 // height.
+/**
+ * The "All" pill as a cursor position.
+ *
+ * It is deliberately not a drop target — nothing can be filed into "every
+ * sprint" — so it has no `data-drop-sprint`. `data-pill` is the separate idea:
+ * somewhere the keyboard cursor can rest. Sprint ids are UUIDs, so this
+ * cannot collide with one.
+ */
+export const ALL_PILL = 'all';
+
 const PILL =
   'flex h-6 shrink-0 items-center overflow-hidden rounded-full border-2 text-xs transition-colors';
 
-// Aiming at a pill recolours its border rather than ringing or growing it:
-// the scroller sets overflow-x, which forces overflow-y to auto, so a ring or
-// a scale would be clipped by the 36px row. The carried card floats above the
-// pill, so the border only has to confirm which one.
+// Aiming at a pill recolours its border and breaks it into dashes rather than
+// ringing or growing it: the scroller sets overflow-x, which forces overflow-y
+// to auto, so a ring or a scale would be clipped by the 36px row. Dashed to
+// match a card's focus ring — one shape means "the cursor is here" everywhere
+// on the board, and a solid blue hairline on its own reads as too quiet.
 const AIMED = 'rgb(var(--brand-primary))';
 
 /** The two fixed selections. Neither is a sprint, so neither takes a colour. */
@@ -25,7 +36,9 @@ function FixedPill({
   active,
   title,
   dropSprint,
+  pill,
   targeted,
+  held,
   onClick,
 }: {
   label: string;
@@ -34,7 +47,11 @@ function FixedPill({
   /** The `data-drop-sprint` value, or absent to refuse drops — "All" is a
    *  filter, not a sprint, so a card cannot be dropped on it. */
   dropSprint?: string;
+  /** This pill's `data-pill` value, for the cursor to find and measure. */
+  pill: string;
   targeted?: boolean;
+  /** Lifted out of the row and currently in hand, so shown as a ghost. */
+  held?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -44,11 +61,14 @@ function FixedPill({
       aria-pressed={active}
       title={title}
       data-drop-sprint={dropSprint}
+      data-pill={pill}
       // Border and fill kept apart so aiming can replace the border without an
       // !important fighting the state class next to it.
       className={`${PILL} justify-center px-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
-        targeted ? 'border-brand-primary' : active ? 'border-text-primary' : 'border-line'
-      } ${active ? 'bg-text-primary text-surface-card' : 'bg-surface-card text-text-primary'}`}
+        targeted ? 'border-dashed border-brand-primary' : active ? 'border-text-primary' : 'border-line'
+      } ${active ? 'bg-text-primary text-surface-card' : 'bg-surface-card text-text-primary'} ${
+        held ? 'opacity-30' : ''
+      }`}
     >
       {label}
     </button>
@@ -69,9 +89,10 @@ export default function SprintsRow({
   counts,
   dark,
   dropTarget,
+  heldId,
   activeMilestone,
   activeSprint,
-  onSelect,
+  onToggle,
   onAdd,
   onEdit,
   onDelete,
@@ -87,10 +108,15 @@ export default function SprintsRow({
   dark: boolean;
   /** Where a card currently in the air would land, so that pill can light up. */
   dropTarget?: DropTarget | null;
+  /** The pill lifted out of the row, shown as a ghost in its place. `undefined`
+   *  means nothing is held; `null` is the "No sprint" pill, which is held like
+   *  any other and unassigns whatever it is dropped on. */
+  heldId?: string | null;
   activeMilestone: string | null;
   /** null = All, UNSCHEDULED = tasks in no sprint, otherwise a sprint id. */
   activeSprint: string | null;
-  onSelect: (id: string | null) => void;
+  /** A pill was activated: ALL_PILL, null for "No sprint", or a sprint id. */
+  onToggle: (pill: string | null) => void;
   onAdd: () => void;
   onEdit: (sprint: Sprint) => void;
   onDelete: (sprint: Sprint) => void;
@@ -135,15 +161,19 @@ export default function SprintsRow({
           label="All"
           active={activeSprint === null}
           title="Every task, scheduled or not"
-          onClick={() => onSelect(null)}
+          pill={ALL_PILL}
+          targeted={targeted(ALL_PILL)}
+          onClick={() => onToggle(ALL_PILL)}
         />
         <FixedPill
           label="No sprint"
           active={activeSprint === UNSCHEDULED}
           title="Tasks not in any sprint"
           dropSprint=""
+          pill=""
           targeted={targeted(null)}
-          onClick={() => onSelect(activeSprint === UNSCHEDULED ? null : UNSCHEDULED)}
+          held={heldId === null}
+          onClick={() => onToggle(null)}
         />
 
         {shown.map((sprint) => {
@@ -167,16 +197,19 @@ export default function SprintsRow({
             <span
               key={sprint.id}
               data-drop-sprint={sprint.id}
+              data-pill={sprint.id}
               style={{
                 backgroundColor: active ? colour : undefined,
                 borderColor: aimed ? AIMED : active ? colour : ink,
                 color: ink,
               }}
-              className={`${PILL} ${active ? '' : 'bg-transparent'}`}
+              className={`${PILL} ${active ? '' : 'bg-transparent'} ${
+                aimed ? 'border-dashed' : ''
+              } ${heldId === sprint.id ? 'opacity-30' : ''}`}
             >
               <button
                 type="button"
-                onClick={() => onSelect(active ? null : sprint.id)}
+                onClick={() => onToggle(sprint.id)}
                 aria-pressed={active}
                 // The count is the one extra fact on the pill, so it is said
                 // properly here rather than left as a bare digit to a reader.
