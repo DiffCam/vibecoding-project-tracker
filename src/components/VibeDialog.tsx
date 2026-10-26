@@ -146,6 +146,18 @@ export default function VibeDialog({
           alt="The vibe meter: energy from low to high up the chart, unpleasant to pleasant across it."
           className="block w-full"
         />
+        {/* Behind the dot, tinted with the vibe's own colour — the same token
+            the header chip uses, so one hue means one mood everywhere. The
+            dark edge stays, because that is what makes the ring legible over
+            all seven quadrant colours; the tint alone would vanish on the
+            quadrant it matches. Translucent, so a 2.6x ring never hides the
+            chart under it. While probing it follows the dot, so dragging
+            across a boundary recolours the pulse. */}
+        <span
+          aria-hidden="true"
+          style={{ ...marker(shown), backgroundColor: `rgb(var(${token}) / 0.55)` }}
+          className="anim-vibe-ping absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#1D1D1F]"
+        />
         <span
           aria-hidden="true"
           style={marker(shown)}

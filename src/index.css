@@ -172,6 +172,16 @@
   to   { transform: scale(0); opacity: 0; }
 }
 
+/* A slow ping around the marker on the vibe chart. It is a 16px dot on a busy
+   poster and easy to miss if nobody tells you it is there. The translate is
+   repeated in every frame because the keyframe owns `transform` outright once
+   it runs, and dropping it would fling the ring off its anchor. */
+@keyframes vibe-ping {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.85; }
+  70%  { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+}
+
 /* The ghost left behind coming back to full strength as its copy lands. */
 @keyframes ghost-return {
   from { opacity: 0.3; }
@@ -183,10 +193,13 @@
 .anim-pop   { animation: pop 320ms cubic-bezier(0.22, 1.25, 0.36, 1) both; }
 .anim-drop-into-pill { animation: drop-into-pill 240ms cubic-bezier(0.4, 0, 1, 1) both; }
 .anim-ghost-return   { animation: ghost-return 240ms ease-out both; }
+.anim-vibe-ping      { animation: vibe-ping 1800ms cubic-bezier(0, 0, 0.2, 1) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-slide, .anim-rise, .anim-pop,
   .anim-drop-into-pill, .anim-ghost-return { animation: none; }
+  /* Hidden rather than frozen: parked at full size it is just a stray ring. */
+  .anim-vibe-ping { animation: none; opacity: 0; }
   .sprint-badge { transition: none; }
 }
 
