@@ -1,6 +1,20 @@
+import Icon from './Icon';
+
 // Initials badge for a team member (REQUIREMENTS 4.C). Decorative — "CF" read
 // aloud helps nobody, so callers render the full name as text or sr-only.
-export default function Avatar({ name, accent }: { name: string; accent?: string }) {
+//
+// An agent gets a robot glyph instead of initials: it is the one thing that
+// has to be obvious at a glance on a card, where there is no room to say so
+// in words.
+export default function Avatar({
+  name,
+  accent,
+  agent = false,
+}: {
+  name: string;
+  accent?: string;
+  agent?: boolean;
+}) {
   const initials = name
     .split(' ')
     .filter(Boolean)
@@ -19,7 +33,7 @@ export default function Avatar({ name, accent }: { name: string; accent?: string
         accent ? '' : 'border border-line bg-surface-page text-text-primary'
       }`}
     >
-      {initials}
+      {agent ? <Icon name="robot" className="h-3.5 w-3.5" /> : initials}
     </span>
   );
 }

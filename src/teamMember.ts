@@ -26,6 +26,16 @@ export function githubUrl(handle: string): string {
   return `https://github.com/${handle}`;
 }
 
+/** Whether a teammate is an agent rather than a person. */
+export function isAgent(member: TeamMember): boolean {
+  return member.agent !== undefined;
+}
+
+/** The names on the roster that belong to agents, for lookups by name. */
+export function agentNames(team: TeamMember[]): Set<string> {
+  return new Set(team.filter(isAgent).map((member) => member.name));
+}
+
 /**
  * A colour per teammate, by position in the roster rather than by hashing the
  * name — same reasoning as tags, where hashing collided often enough to read

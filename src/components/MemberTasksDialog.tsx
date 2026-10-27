@@ -12,12 +12,14 @@ export default function MemberTasksDialog({
   member,
   tasks,
   accent,
+  agent = false,
   onOpenTask,
   onClose,
 }: {
   member: string;
   tasks: Task[];
   accent?: string;
+  agent?: boolean;
   onOpenTask: (task: Task) => void;
   onClose: () => void;
 }) {
@@ -38,7 +40,7 @@ export default function MemberTasksDialog({
         id="member-tasks-title"
         className="mb-4 flex items-center gap-2 text-base font-semibold text-text-primary"
       >
-        <Avatar name={member} accent={accent} />
+        <Avatar name={member} accent={accent} agent={agent} />
         {member} · {tasks.filter((task) => task.status !== 'done').length} active
       </h2>
 

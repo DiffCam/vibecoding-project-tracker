@@ -231,6 +231,7 @@ export function buildDemo(zone: VibeZone, from: Date = new Date()): Demo {
       tags: card.tags,
       // Each milestone's tasks sit in that milestone's sprint.
       sprintId: card.milestoneId === 'demo-m1' ? 'demo-s1' : 'demo-s2',
+      contextMode: 'spdd',
     })),
   };
 }

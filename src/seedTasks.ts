@@ -20,6 +20,7 @@ export const SEED_TASKS: Task[] = [
     milestoneId: null,
     tags: [],
     sprintId: null,
+    contextMode: 'simple',
   },
   {
     id: 'seed-2',
@@ -65,6 +66,7 @@ it cannot be hoisted into an effect.
     milestoneId: null,
     tags: ['VIP', 'System:Clipboard'],
     sprintId: null,
+    contextMode: 'simple',
   },
   {
     id: 'seed-3',
@@ -82,6 +84,7 @@ it cannot be hoisted into an effect.
     milestoneId: null,
     tags: ['System:Clipboard'],
     sprintId: null,
+    contextMode: 'simple',
   },
   {
     id: 'seed-4',
@@ -99,5 +102,6 @@ it cannot be hoisted into an effect.
     milestoneId: null,
     tags: [],
     sprintId: null,
+    contextMode: 'simple',
   },
 ];

@@ -57,6 +57,7 @@ export default function TaskCard({
   tagColors,
   selection,
   sprint,
+  agent = false,
   lifted,
   isOverlay = false,
 }: {
@@ -70,6 +71,8 @@ export default function TaskCard({
   selection: 'highlighted' | 'grabbed' | null;
   /** The sprint this task sits in, if any — shown as a corner badge. */
   sprint?: { label: string; name: string; colour: string };
+  /** Whether the assignee is an agent, which changes the avatar's glyph. */
+  agent?: boolean;
   /** Set while a copy of this card is in the air. Hidden with opacity rather
    *  than visibility: a `visibility: hidden` element cannot hold focus, so
    *  hiding a keyboard-carried card blurred it and the arrows stopped reaching
@@ -181,7 +184,7 @@ export default function TaskCard({
             Context
           </button>
 
-          <Avatar name={task.assignee} />
+          <Avatar name={task.assignee} agent={agent} />
         </div>
 
         {/* The rail is decorative, so its meaning is said here (NFR 3.B). */}

@@ -58,6 +58,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     rows: [
       ['N', 'New task'],
       ['T', 'Team'],
+      ['C', 'Project context'],
       ['M', 'Next milestone tab'],
       ['D', 'Dark mode'],
       ['L', 'Light mode'],

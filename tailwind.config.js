@@ -26,6 +26,9 @@ export default {
           'sunken-alt': token('surface-sunken-alt'),
           list: token('surface-list'),
           pill: token('surface-pill'),
+          chosen: token('surface-chosen'),
+          preview: token('surface-preview'),
+          'preview-alt': token('surface-preview-alt'),
         },
         text: {
           primary: token('text-primary'),

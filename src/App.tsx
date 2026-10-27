@@ -8,6 +8,7 @@ import { DEFAULT_TEAM, SEED_ANCHORS, STAGES, STATUS_DOT } from './constants';
 import { SEED_TASKS } from './seedTasks';
 import AnchorBoard from './components/AnchorBoard';
 import ConfirmDialog from './components/ConfirmDialog';
+import ProjectContextDialog from './components/ProjectContextDialog';
 import DebugFab from './components/DebugFab';
 import DrivingStrip from './components/DrivingStrip';
 import Icon from './components/Icon';
@@ -15,8 +16,8 @@ import Logo from './components/Logo';
 import MilestoneTabs from './components/MilestoneTabs';
 import TaskCard from './components/TaskCard';
 import TagsDialog from './components/TagsDialog';
-import TaskModal from './components/TaskModal';
-import type { NewTaskDefaults } from './components/TaskModal';
+import TaskEditor from './components/TaskEditor';
+import type { NewTaskDefaults } from './components/TaskEditor';
 import SearchDialog, { FilterTag } from './components/SearchDialog';
 import SprintForm from './components/SprintForm';
 import SelectionStack, { stackSpread, STACK_LAYERS } from './components/SelectionStack';
@@ -25,7 +26,9 @@ import ShortcutOverlay from './components/ShortcutOverlay';
 import TeamDialog from './components/TeamDialog';
 import ThemeToggle from './components/ThemeToggle';
 import VibeMeter from './components/VibeMeter';
+import { agentNames } from './teamMember';
 import { toPromptContext } from './promptContext';
+import type { Brief } from './promptContext';
 import { buildDemo } from './demoData';
 import { assignColors, resolveTagColors, TAG_INK } from './tagColor';
 import {
@@ -117,6 +120,12 @@ export default function App() {
       tags: task.tags ?? [],
       milestoneId: task.milestoneId ?? null,
       sprintId: task.sprintId ?? null,
+      // Already-written tasks open in the plain editor: their prose predates
+      // the canvas and would show as seven empty cards plus a blob. `canvas`
+      // was the earlier two-way flag, so anything stored under it is carried
+      // across rather than silently reset.
+      contextMode:
+        task.contextMode ?? ((task as { canvas?: boolean }).canvas ? 'spdd' : 'simple'),
     }))
   );
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
@@ -135,6 +144,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Milestone | null>(null);
   const [showTags, setShowTags] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const newTaskRef = useRef<HTMLButtonElement>(null);
 
@@ -154,6 +164,11 @@ export default function App() {
     stored.map((member) =>
       typeof member === 'string' ? { name: member as string } : member
     )
+  );
+  // The widest tier of prompt context, shared by every task on the board.
+  const [projectContext, setProjectContext] = useLocalStorage<string>(
+    'vibetracker.projectContext',
+    ''
   );
   const [allTags, setAllTags] = useLocalStorage<string[]>('vibetracker.tags', [
     'VIP',
@@ -225,6 +240,9 @@ export default function App() {
   const [activeSprint, setActiveSprint] = useState<string | null>(null);
   const [editingSprint, setEditingSprint] = useState<Sprint | 'new' | null>(null);
 
+  // A card has a name, not a member, so the lookup happens once up here.
+  const agents = agentNames(team);
+
   const memberColors = assignColors(
     team.map((member) => member.name),
     chosenMemberColors
@@ -257,6 +275,7 @@ export default function App() {
     const actions: Record<string, () => void> = {
       n: () => open('new', newTaskRef.current), // focus returns to the button on close
       t: () => setShowTeam(true),
+      c: () => setShowContext(true),
       d: () => setTheme('dark'),
       l: () => setTheme('light'),
       m: () => {
@@ -273,6 +292,8 @@ export default function App() {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTyping(event.target)) return;
       if (document.querySelector('dialog[open]') !== null) return;
+      // The editor is a page, not a dialog, so the check above cannot see it.
+      if (editing !== null) return;
       event.preventDefault();
       action();
     };
@@ -280,7 +301,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
     // `m` reads the milestone list and the open tab, so this one cannot be
     // a mount-only listener the way the others could.
-  }, [milestones, activeMilestone]);
+  }, [milestones, activeMilestone, editing]);
 
   useEffect(() => {
     if (toast === null) return;
@@ -332,11 +353,24 @@ export default function App() {
   // look like the demo worked.
   async function copyContext(task: Task) {
     try {
-      await navigator.clipboard.writeText(toPromptContext(task));
+      await navigator.clipboard.writeText(toPromptContext(task, briefFor(task)));
       setToast('Context copied. Ready to paste.');
     } catch {
       setToast('Copy blocked by the browser. Open the task to copy by hand.');
     }
+  }
+
+  /**
+   * The standing context around a task: the project's, plus the assignee's own
+   * if they are an agent. A person brings their own head to the job.
+   */
+  function agentFor(assignee: string): Brief['agent'] {
+    const member = team.find((one) => one.name === assignee);
+    return member?.agent ? { name: member.name, ...member.agent } : undefined;
+  }
+
+  function briefFor(task: Task): Brief {
+    return { project: projectContext, agent: agentFor(task.assignee) };
   }
 
   // The one way a task changes outside the modal — shared by drag-drop and the
@@ -743,6 +777,7 @@ export default function App() {
   }, [aim, visibleTasks]);
 
   useModifierKey({
+    suspended: editing !== null,
     onTap: () => {
       if (grabbed) return placeGrabbed(grabbed);
       focusBoard();
@@ -757,7 +792,7 @@ export default function App() {
    * board and places a carried card, both of which still have to work while
    * picking a group.
    */
-  useBareKeyTap('Alt', () => {
+  useBareKeyTap('Alt', editing !== null, () => {
     const leaving = selectMode;
     setSelectMode(!leaving);
     setSelected([]);
@@ -1228,16 +1263,46 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-page font-sans">
+    <div
+      className={`bg-surface-page font-sans ${
+        // The editor fills what the header leaves. A viewport-height column
+        // measures that; subtracting a hard-coded header height guesses at
+        // it, and was a few pixels out.
+        editing !== null ? 'flex h-screen flex-col overflow-hidden' : 'min-h-screen'
+      }`}
+    >
       {/* Background only, no hairline: chrome is a step darker than the content
           area in both themes — pure black in dark, #C2C2C8 in light. */}
       <header className="sticky top-0 z-20 bg-surface-chrome">
+        {/* Capped in both views: the logo has to sit in the same place on the
+            board and in the editor, and dropping the cap for one of them moved
+            it by half the overflow. The editor's form aligns to this instead
+            — see .editor-gutter. */}
         <div className="relative mx-auto flex max-w-[1600px] items-center justify-between gap-6 px-6 py-3">
           {/* A lockup rather than an icon next to text: the badge is sized to
               the full height of the title + tagline block, so their top and
               bottom edges line up. z-10 keeps it above the text, which is what
               lets the text slide out from behind it. */}
-          <div className="flex items-center gap-3">
+          {/* Clickable only when there is somewhere to go back to, so it is
+              not a dead control on the board itself. */}
+          <div
+            {...(editing !== null
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  onClick: close,
+                  onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    close();
+                  },
+                  title: 'Back to the board',
+                }
+              : {})}
+            className={`flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
+              editing !== null ? 'cursor-pointer' : ''
+            }`}
+          >
             {/* Badge and mark both invert with the theme on their own: the badge
                 is the ink colour, the mark is the chrome colour. Dark badge with
                 a light mark in light mode, and the reverse in dark. */}
@@ -1264,18 +1329,33 @@ export default function App() {
               and so a second line costs the header no height. Centred on both
               axes now that there are two. pointer-events-none so it can never
               swallow a click — the vibe chip opts back in for its tooltip. */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
-            <VibeMeter tasks={tasks} />
-            <p className="font-mono text-xs text-text-muted">
-              hold <Kbd>{MODIFIER_LABEL}</Kbd> for shortcuts
-            </p>
-          </div>
+          {/* Board furniture: the vibe is a read on the whole project and the
+              shortcuts it advertises are all suspended in the editor. */}
+          {editing === null && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
+              <VibeMeter tasks={tasks} />
+              <p className="font-mono text-xs text-text-muted">
+                hold <Kbd>{MODIFIER_LABEL}</Kbd> for shortcuts
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <ThemeToggle
               dark={theme === 'dark'}
               onChange={(dark) => setTheme(dark ? 'dark' : 'light')}
             />
+            {editing !== null ? null : (
+              <>
+            <button
+              type="button"
+              onClick={() => setShowContext(true)}
+              title="Project context (C)"
+              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              <Icon name="brief" className="h-4 w-4 shrink-0" />
+              Context
+            </button>
             <button
               type="button"
               onClick={() => setShowTeam(true)}
@@ -1293,9 +1373,13 @@ export default function App() {
               <button
                 ref={newTaskRef}
                 type="button"
+                // The board is no longer behind a modal backdrop, so this is
+                // clickable mid-edit — and would throw away whatever is in
+                // the editor. The N shortcut is suppressed for the same reason.
+                disabled={editing !== null}
                 onClick={(event) => open('new', event.currentTarget)}
                 title="New task (N)"
-                className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-5 py-1.5 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-5 py-1.5 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
               >
                 <Icon name="plus" className="h-4 w-4 shrink-0" />
                 New Task
@@ -1304,10 +1388,30 @@ export default function App() {
                 press N
               </span>
             </div>
+              </>
+            )}
           </div>
         </div>
       </header>
 
+      {editing !== null ? (
+        <TaskEditor
+          // Remounts per task: the form seeds itself on mount, so reusing the
+          // instance would carry one task's unsaved edits into another.
+          key={editing === 'new' ? 'new' : editing.id}
+          task={editing === 'new' ? null : editing}
+          team={team}
+          milestones={milestones}
+          sprints={sprints}
+          allTags={allTags}
+          tagColors={tagColors}
+          defaults={newDefaults}
+          onSave={save}
+          onDelete={remove}
+          brief={{ project: projectContext, agentFor }}
+          onClose={close}
+        />
+      ) : (
       <main className="mx-auto flex max-w-[1600px] flex-col gap-4 px-6 py-4">
         <Enter on={entering} delay={0}>
           <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
@@ -1589,6 +1693,7 @@ export default function App() {
                             onCopy={() => copyContext(task)}
                             onPointerDown={bindCard(task.id)}
                             tagColors={tagColors}
+                            agent={agents.has(task.assignee)}
                             sprint={sprintBadge(task)}
                             lifted={
                               drag?.taskId === task.id
@@ -1625,23 +1730,9 @@ export default function App() {
         </section>
         </Enter>
       </main>
-
-      {editing !== null && (
-        <TaskModal
-          task={editing === 'new' ? null : editing}
-          team={team}
-          milestones={milestones}
-          sprints={sprints}
-          allTags={allTags}
-          tagColors={tagColors}
-          defaults={newDefaults}
-          onSave={save}
-          onDelete={remove}
-          onClose={close}
-        />
       )}
 
-      <DebugFab onPick={setPendingDemo} />
+      {editing === null && <DebugFab onPick={setPendingDemo} />}
 
       {pendingDemo && (
         <ConfirmDialog
@@ -1725,6 +1816,14 @@ export default function App() {
           })()}
           onConfirm={() => removeMilestone(pendingDelete.id)}
           onCancel={() => setPendingDelete(null)}
+        />
+      )}
+
+      {showContext && (
+        <ProjectContextDialog
+          value={projectContext}
+          onChange={setProjectContext}
+          onClose={() => setShowContext(false)}
         />
       )}
 
@@ -1827,6 +1926,7 @@ export default function App() {
           >
             <TaskCard
               task={{ ...draggedTask, status: statusOf(draggedTask) }}
+              agent={agents.has(draggedTask.assignee)}
               sprint={sprintBadge(
                 drag.over?.kind === 'sprint'
                   ? { ...draggedTask, sprintId: drag.over.id }
@@ -1864,6 +1964,7 @@ export default function App() {
           >
             <TaskCard
               task={carriedTask}
+              agent={agents.has(carriedTask.assignee)}
               // Previews the result: the badge shows the pill being aimed at.
               sprint={sprintBadge(
                 grabbed?.target.kind === 'sprint'
@@ -1959,6 +2060,7 @@ export default function App() {
             total={selected.length}
             at={stackAt}
             tagColors={tagColors}
+            isAgent={(task) => agents.has(task.assignee)}
             sprintOf={(task) =>
               sprintBadge(
                 aim === null ? task : { ...task, sprintId: aim.id }
@@ -1992,6 +2094,7 @@ export default function App() {
           >
             <TaskCard
               task={landing.task}
+              agent={agents.has(landing.task.assignee)}
               sprint={sprintBadge(landing.task)}
               tagColors={tagColors}
               isOverlay

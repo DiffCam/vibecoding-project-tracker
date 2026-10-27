@@ -35,6 +35,7 @@ export default function SelectionStack({
   total,
   at,
   tagColors,
+  isAgent,
   sprintOf,
 }: {
   /** Newest first, already capped at STACK_LAYERS. */
@@ -43,6 +44,7 @@ export default function SelectionStack({
   total: number;
   at: { left: number; top: number; width: number };
   tagColors: Record<string, string>;
+  isAgent: (task: Task) => boolean;
   sprintOf: (task: Task) => { label: string; name: string; colour: string } | undefined;
 }) {
   const hidden = total - held.length;
@@ -71,6 +73,7 @@ export default function SelectionStack({
           >
             <TaskCard
               task={task}
+              agent={isAgent(task)}
               sprint={sprintOf(task)}
               tagColors={tagColors}
               isOverlay

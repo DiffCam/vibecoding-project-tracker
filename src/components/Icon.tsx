@@ -20,6 +20,25 @@ const PATHS = {
   ],
   moon: ['M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z'],
   close: ['M18 6L6 18', 'M6 6l12 12'],
+  check: ['M20 6L9 17l-5-5'],
+  back: ['M19 12H5', 'M12 19l-7-7 7-7'],
+  // A page with a folded corner and three lines of writing.
+  brief: [
+    'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
+    'M14 3v5h5',
+    'M9 13h6',
+    'M9 17h6',
+  ],
+  // A head with an antenna: two eyes, a mouth, and ears down the sides.
+  robot: [
+    'M12 2v3',
+    'M9 8h6a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z',
+    'M3 13v2',
+    'M21 13v2',
+    'M10 13h.01',
+    'M14 13h.01',
+    'M10 17h4',
+  ],
   copy: ['M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
   pencil: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
   eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z'],

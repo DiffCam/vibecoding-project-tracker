@@ -7,7 +7,7 @@ import ScrollEdge, { useScrollEdges } from './ScrollEdge';
 import Switch from './Switch';
 import { STAGES, STATUS_DOT } from '../constants';
 import { byUrgency, dueState } from '../dueState';
-import { githubUrl } from '../teamMember';
+import { githubUrl, isAgent } from '../teamMember';
 import { useLocalStorage } from '../useLocalStorage';
 import type { Task, TeamMember } from '../types';
 
@@ -146,7 +146,11 @@ export default function DrivingStrip({
                     so the pills below stay independently clickable. */}
                 <div className="relative p-3">
                   <div className="flex items-center gap-2">
-                    <Avatar name={member.name} accent={memberColors[member.name]} />
+                    <Avatar
+                      name={member.name}
+                      accent={memberColors[member.name]}
+                      agent={isAgent(member)}
+                    />
                     <h3 className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">
                       <button
                         type="button"
@@ -177,7 +181,11 @@ export default function DrivingStrip({
                   </div>
 
                   <div className="mt-1.5 flex items-center gap-2">
-                    {member.github ? (
+                    {isAgent(member) ? (
+                      <p className="truncate font-mono text-[11px] text-text-muted">
+                        {member.agent?.role}
+                      </p>
+                    ) : member.github ? (
                       <a
                         href={githubUrl(member.github)}
                         target="_blank"
@@ -305,6 +313,7 @@ export default function DrivingStrip({
             .filter((task) => task.assignee === openMember)
             .sort(byUrgency)}
           accent={memberColors[openMember]}
+          agent={team.some((member) => member.name === openMember && isAgent(member))}
           onOpenTask={(task) => {
             // Hand the opener up, not the row that was clicked — that row
             // unmounts with this dialog, and focus cannot return to a node

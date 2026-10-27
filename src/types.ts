@@ -3,7 +3,17 @@
 
 export type TaskType = 'feature' | 'bug';
 export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done';
-export type AITool = 'Claude' | 'ChatGPT' | 'Cursor' | 'Lovable' | 'Replit' | 'Other' | null;
+/**
+ * Which assistant the context was written with.
+ *
+ * A free string rather than a union of the six we happen to list: "Other"
+ * means someone types a name AI_TOOLS does not have, and pinning this to
+ * literals would make that list a schema needing a release to extend.
+ */
+export type AITool = string | null;
+
+/** simple = one box, spdd = the REASONS canvas, custom = sections you name. */
+export type ContextMode = 'simple' | 'spdd' | 'custom';
 
 export interface Task {
   id: string; // UUID or timestamp
@@ -26,6 +36,14 @@ export interface Task {
   milestoneId: string | null;
   /** Free-form labels, optionally grouped as "Group:Name". See src/tags.ts. */
   tags: string[];
+  /**
+   * Which editor the context opens in.
+   *
+   * Per task rather than a global preference: a one-line bug does not need
+   * seven prompts, and the choice should stay with the ticket. All three edit
+   * the same markdown string, so this only picks the view.
+   */
+  contextMode: ContextMode;
   /** Which sprint the task sits in; null is unscheduled. */
   sprintId: string | null;
 }
@@ -40,7 +58,22 @@ export interface Sprint {
 
 export interface TeamMember {
   name: string; // the value stored in Task.assignee
+  /** A person's GitHub handle. Agents have none. */
   github?: string;
+  /**
+   * Present only on agents, and the thing that makes one an agent.
+   *
+   * Nested rather than two loose fields so the invalid state — a role on a
+   * person, or an agent with nothing to say for itself — cannot be written.
+   * Everything else about them is a teammate: they are assigned work, they
+   * appear on the board, and Task.assignee still holds just the name.
+   */
+  agent?: {
+    /** One line: "Frontend developer", "SecOps reviewer". */
+    role: string;
+    /** The detail behind the role. */
+    context: string;
+  };
 }
 
 export interface Milestone {

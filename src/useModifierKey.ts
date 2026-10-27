@@ -51,7 +51,7 @@ export function shouldArm(
  * Alt+letter do not count as a tap; and blur resets, because Alt+Tab leaves
  * the page with the key down and its keyup is never delivered.
  */
-export function useBareKeyTap(key: string, onTap: () => void) {
+export function useBareKeyTap(key: string, suspended: boolean, onTap: () => void) {
   const armed = useRef(false);
   const handler = useRef(onTap);
   handler.current = onTap;
@@ -63,6 +63,7 @@ export function useBareKeyTap(key: string, onTap: () => void) {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (
+        suspended ||
         event.key !== key ||
         event.repeat ||
         isTyping(event.target) ||
@@ -87,7 +88,7 @@ export function useBareKeyTap(key: string, onTap: () => void) {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', reset);
     };
-  }, [key]);
+  }, [key, suspended]);
 }
 
 /** How long the modifier must be held before it stops being a tap. */
@@ -107,9 +108,12 @@ const HOLD_MS = 350;
 export function useModifierKey({
   onTap,
   onHoldChange,
+  suspended = false,
 }: {
   onTap: () => void;
   onHoldChange: (holding: boolean) => void;
+  /** True while another view owns the screen — the board is not underneath. */
+  suspended?: boolean;
 }) {
   const armed = useRef(false);
   const holding = useRef(false);
@@ -132,11 +136,13 @@ export function useModifierKey({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const arms = shouldArm(
-        event,
-        isTyping(event.target),
-        document.querySelector('dialog[open]') !== null
-      );
+      const arms =
+        !suspended &&
+        shouldArm(
+          event,
+          isTyping(event.target),
+          document.querySelector('dialog[open]') !== null
+        );
 
       if (!arms) {
         // Any other key both cancels a pending tap and closes an open hold.
@@ -173,5 +179,5 @@ export function useModifierKey({
       window.removeEventListener('pointerdown', reset);
       window.removeEventListener('blur', reset);
     };
-  }, []);
+  }, [suspended]);
 }
