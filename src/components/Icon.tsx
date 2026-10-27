@@ -22,6 +22,9 @@ const PATHS = {
   close: ['M18 6L6 18', 'M6 6l12 12'],
   check: ['M20 6L9 17l-5-5'],
   back: ['M19 12H5', 'M12 19l-7-7 7-7'],
+  down: ['M6 9l6 6 6-6'],
+  menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+  panel: ['M4 5h16v14H4z', 'M10 5v14'],
   // A page with a folded corner and three lines of writing.
   brief: [
     'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',

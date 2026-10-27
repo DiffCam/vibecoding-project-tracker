@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { DUE_PILL, STAGES, STATUS_DOT } from '../constants';
 import { dueBadge } from '../dueState';
 import Avatar from './Avatar';
-import type { Task } from '../types';
+import Icon from './Icon';
+import type { Task, TeamMember } from '../types';
 
 // The overflow view behind a chip's "+N more". A dialog rather than an inline
 // expand so the Driving strip keeps a fixed height and never shoves the board
@@ -12,15 +13,19 @@ export default function MemberTasksDialog({
   member,
   tasks,
   accent,
-  agent = false,
+  agent,
   onOpenTask,
+  onEditContext,
   onClose,
 }: {
   member: string;
   tasks: Task[];
   accent?: string;
-  agent?: boolean;
+  /** The member's agent half, present only for bots. */
+  agent?: TeamMember['agent'];
   onOpenTask: (task: Task) => void;
+  /** Leaves for this agent's context page. Only called for a bot. */
+  onEditContext: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -38,11 +43,42 @@ export default function MemberTasksDialog({
     >
       <h2
         id="member-tasks-title"
-        className="mb-4 flex items-center gap-2 text-base font-semibold text-text-primary"
+        className={`flex items-center gap-2 text-base font-semibold text-text-primary ${
+          agent ? '' : 'mb-4'
+        }`}
       >
-        <Avatar name={member} accent={accent} agent={agent} />
+        <Avatar name={member} accent={accent} agent={agent !== undefined} />
         {member} · {tasks.filter((task) => task.status !== 'done').length} active
       </h2>
+
+      {/* A bot's standing brief, which goes into every prompt it is handed —
+          so this is the one view where seeing it next to the work is useful.
+          People have a role too, but theirs is not sent anywhere. */}
+      {agent && (
+        <div className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-page px-3 py-2">
+          <p className="min-w-0 text-sm text-text-primary">
+            {agent.role}
+            {agent.context.trim() === '' && (
+              <span className="text-text-muted"> · no context written</span>
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={onEditContext}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            <Icon name="brief" className="h-3.5 w-3.5 shrink-0" />
+            {agent.context.trim() ? 'View / edit context' : 'Write context'}
+            {agent.history.length > 0 && (
+              // The count, not the text: how much history there is to go
+              // back through is the thing you cannot tell from out here.
+              <span className="font-mono text-[11px] text-text-muted">
+                · v{agent.history.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       <ul className="-mx-1 min-h-0 flex-1 space-y-2 overflow-y-auto px-1">
         {tasks.map((task) => {

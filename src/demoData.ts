@@ -19,7 +19,9 @@ function day(offset: number, from: Date = new Date()): string {
 
 const TEAM: TeamMember[] = [
   { name: 'Cameron Farr', github: 'itscamfarr' },
-  { name: 'Priya Raman', github: 'praman' },
+  // No handle: a plausible-looking one belongs to a real person. An
+  // example.com address is reserved by RFC 2606 and never will.
+  { name: 'Robin Vale', email: 'robin@example.com' },
   { name: 'Theo Okafor' },
 ];
 
@@ -56,7 +58,7 @@ const CAST: {
     title: 'Drag a card onto a sprint',
     description: 'Pointer drag and keyboard carry land on the same drop targets.',
     type: 'feature',
-    assignee: 'Priya Raman',
+    assignee: 'Robin Vale',
     milestoneId: 'demo-m1',
     tags: ['System:Board'],
   },
@@ -80,7 +82,7 @@ const CAST: {
     title: 'Due countdown misreads February',
     description: 'A task due on the 29th reads as overdue on the 28th in leap years.',
     type: 'bug',
-    assignee: 'Priya Raman',
+    assignee: 'Robin Vale',
     milestoneId: 'demo-m2',
     tags: ['System:Dates'],
   },
@@ -104,7 +106,7 @@ const CAST: {
     title: 'Pitch script and run-through',
     description: 'Three minutes, one laptop, no live coding.',
     type: 'feature',
-    assignee: 'Priya Raman',
+    assignee: 'Robin Vale',
     milestoneId: 'demo-m2',
     tags: ['VIP'],
   },
@@ -232,6 +234,10 @@ export function buildDemo(zone: VibeZone, from: Date = new Date()): Demo {
       // Each milestone's tasks sit in that milestone's sprint.
       sprintId: card.milestoneId === 'demo-m1' ? 'demo-s1' : 'demo-s2',
       contextMode: 'spdd',
+      history: [],
+      events: [],
+      weight: 1,
+      key: index + 1,
     })),
   };
 }

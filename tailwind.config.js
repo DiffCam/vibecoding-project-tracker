@@ -48,6 +48,10 @@ export default {
           review: token('status-review'),
           done: token('status-done'),
         },
+        // Destructive ink. Its own token because no single red clears 4.5:1
+        // on the chrome in both themes — #D70015 is 5.16 light and 3.53 dark,
+        // #FF375F is the mirror of that. Same reasoning as surface-chrome.
+        danger: token('danger'),
         due: {
           safe: token('due-safe'),
           warning: token('due-warning'),

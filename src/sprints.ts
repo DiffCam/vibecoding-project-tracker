@@ -27,6 +27,24 @@ export function sprintEnd(sprint: Sprint): string {
 }
 
 /**
+ * 'YYYY-MM-DD' as dd/mm/yy, for reading rather than storing.
+ *
+ * Day first: five sprints in a list are five ISO strings that differ in the
+ * last two characters, and the part that tells them apart should come first.
+ * String surgery, not a Date — parsing 'YYYY-MM-DD' through Date reads it as
+ * UTC and can hand back the day before.
+ *
+ * Anything that is not three parts is handed back untouched; a half-typed
+ * date in a form should show what was typed.
+ */
+export function shortDate(iso: string): string {
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year.slice(2)}`;
+}
+
+/**
  * Start date first, then the soonest end — so a short sprint nested inside a
  * long one comes first. `id` breaks the remaining ties so the order never
  * shuffles between renders for two otherwise identical sprints.

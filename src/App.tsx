@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom';
 // window-level listeners below.
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { carryTo, locate, navigate } from './boardNavigation';
-import { DEFAULT_TEAM, SEED_ANCHORS, STAGES, STATUS_DOT } from './constants';
+import { DEFAULT_TEAM, SEED_ANCHORS, STAGES, STATUS_DOT, TYPE_ACCENT } from './constants';
 import { SEED_TASKS } from './seedTasks';
 import AnchorBoard from './components/AnchorBoard';
 import ConfirmDialog from './components/ConfirmDialog';
-import ProjectContextDialog from './components/ProjectContextDialog';
+import ContextPage from './components/ContextPage';
+import NotePage from './components/NotePage';
 import DebugFab from './components/DebugFab';
 import DrivingStrip from './components/DrivingStrip';
 import Icon from './components/Icon';
@@ -17,16 +18,19 @@ import MilestoneTabs from './components/MilestoneTabs';
 import TaskCard from './components/TaskCard';
 import TagsDialog from './components/TagsDialog';
 import TaskEditor from './components/TaskEditor';
+import TypeIcon from './components/TypeIcon';
 import type { NewTaskDefaults } from './components/TaskEditor';
 import SearchDialog, { FilterTag } from './components/SearchDialog';
 import SprintForm from './components/SprintForm';
 import SelectionStack, { stackSpread, STACK_LAYERS } from './components/SelectionStack';
 import SprintsRow, { ALL_PILL } from './components/SprintsRow';
 import ShortcutOverlay from './components/ShortcutOverlay';
-import TeamDialog from './components/TeamDialog';
+import TeamDialog, { BLANK_BOT } from './components/TeamDialog';
+import type { BotDraft } from './components/TeamDialog';
 import ThemeToggle from './components/ThemeToggle';
 import VibeMeter from './components/VibeMeter';
 import { agentNames } from './teamMember';
+import { logChange, naming } from './taskHistory';
 import { toPromptContext } from './promptContext';
 import type { Brief } from './promptContext';
 import { buildDemo } from './demoData';
@@ -46,6 +50,9 @@ import { CHIP_SCALE, useCardDrag } from './useCardDrag';
 import type { DropTarget } from './useCardDrag';
 import { useFlip } from './useFlip';
 import { useLocalStorage } from './useLocalStorage';
+import { key as scopedKey } from './projects';
+import type { User } from './users';
+import type { Invite, Project } from './projects';
 import {
   ALT_LABEL,
   isTyping,
@@ -53,7 +60,17 @@ import {
   useBareKeyTap,
   useModifierKey,
 } from './useModifierKey';
-import type { Anchor, Milestone, Sprint, Task, TaskStatus, TeamMember } from './types';
+import type {
+  Anchor,
+  ContextMode,
+  Milestone,
+  Sprint,
+  Task,
+  TaskStatus,
+  TaskType,
+  TeamMember,
+} from './types';
+import type { ContextVersion } from './contextHistory';
 
 /** Breathing room between a carried card and the pill it is aimed at. */
 const CHIP_GAP = 6;
@@ -110,14 +127,61 @@ function Enter({
   );
 }
 
-export default function App() {
+export default function App({
+  projectId,
+  projectName,
+  theme,
+  onTheme,
+  openTaskId,
+  onOpenedTask,
+  sidebarOpen,
+  onShowSidebar,
+  managers,
+  ownerName,
+  users,
+  invites,
+  viewer,
+  onProject,
+}: {
+  /** Which project's storage this page reads and writes. */
+  projectId: string;
+  projectName: string;
+  /** Owned by the Shell, because the sidebar outlives this page. */
+  theme: 'light' | 'dark';
+  onTheme: (theme: 'light' | 'dark') => void;
+  /** A task the dashboard asked for, opened once this page mounts. */
+  openTaskId: string | null;
+  onOpenedTask: () => void;
+  /** The mark and the burger appear here only while the sidebar is away. */
+  sidebarOpen: boolean;
+  onShowSidebar: () => void;
+  /** The project's managers and its owner, edited from the Team dialog —
+      the only place the roster is already in front of you. */
+  managers: string[];
+  ownerName: string;
+  /** Accounts, so the Team dialog can tell an invitation from a new one. */
+  users: User[];
+  invites: Invite[];
+  /** The signed-in person's standing here, which decides what they may change. */
+  viewer: 'owner' | 'manager' | 'participant' | 'none';
+  onProject: (change: Partial<Pick<Project, 'managers' | 'invites' | 'ownerName'>>) => void;
+}) {
+  // Every stored value below belongs to one project. The Shell remounts this
+  // component when that changes, because useLocalStorage reads its key on
+  // mount and would otherwise keep the outgoing project's state.
+  const k = (name: Parameters<typeof scopedKey>[1]) => scopedKey(projectId, name);
   // Tasks saved before `tags`, `milestoneId` or `sprintId` existed come back
   // without them. Filled in once here so every consumer can trust the type,
   // rather than each one coalescing defensively and one of them forgetting.
-  const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS, (stored) =>
-    stored.map((task) => ({
+  const [tasks, setTasks] = useLocalStorage<Task[]>(k('tasks'), SEED_TASKS, (stored) => {
+    // Handed out above whatever is already in use, so a board that predates
+    // keys numbers itself once by position and never again, and a task that
+    // already has one keeps it. Runs once, on load.
+    let next = Math.max(0, ...stored.map((task) => task.key ?? 0)) + 1;
+    return stored.map((task) => ({
       ...task,
       tags: task.tags ?? [],
+      weight: task.weight ?? 1,
       milestoneId: task.milestoneId ?? null,
       sprintId: task.sprintId ?? null,
       // Already-written tasks open in the plain editor: their prose predates
@@ -126,8 +190,11 @@ export default function App() {
       // across rather than silently reset.
       contextMode:
         task.contextMode ?? ((task as { canvas?: boolean }).canvas ? 'spdd' : 'simple'),
-    }))
-  );
+      history: task.history ?? [],
+      events: task.events ?? [],
+      key: task.key ?? next++,
+    }));
+  });
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   // `target` is where the carried card is hovering. Nothing is written to tasks
@@ -135,6 +202,30 @@ export default function App() {
   // a card is in the air, and Escape costs nothing to undo.
   const [grabbed, setGrabbed] = useState<{ id: string; target: DropTarget } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
+  /**
+   * Whether the board cursor arrived by keyboard.
+   *
+   * The dashed ring means "the keyboard cursor is here", and a card that was
+   * merely clicked or tabbed to was wearing it too — which reads as a mode
+   * being active when none is. `:focus-visible` cannot answer this on its
+   * own: the Cmd tap focuses a card programmatically, and after a click the
+   * browser decides that is not a keyboard focus and shows nothing.
+   *
+   * So: any key arms it, any pointer disarms it. The ring still needs
+   * `highlighted` as well, so it only ever appears on a focused card.
+   */
+  const [keyCursor, setKeyCursor] = useState(false);
+  useEffect(() => {
+    const arm = () => setKeyCursor(true);
+    const disarm = () => setKeyCursor(false);
+    // Capture, so a handler that stops propagation cannot hide the intent.
+    window.addEventListener('keydown', arm, true);
+    window.addEventListener('pointerdown', disarm, true);
+    return () => {
+      window.removeEventListener('keydown', arm, true);
+      window.removeEventListener('pointerdown', disarm, true);
+    };
+  }, []);
   const [showTeam, setShowTeam] = useState(false);
   const [newDefaults, setNewDefaults] = useState<NewTaskDefaults>({});
   // Entrance plays once on load and is then switched off for good.
@@ -145,53 +236,128 @@ export default function App() {
   const [pendingDelete, setPendingDelete] = useState<Milestone | null>(null);
   const [showTags, setShowTags] = useState(false);
   const [showContext, setShowContext] = useState(false);
+  /** Whose agent-context page is open: a member by name, or the bot being added. */
+  const [editingAgent, setEditingAgent] = useState<string | 'new' | null>(null);
+  /**
+   * Which dialog that page was opened from, so leaving reopens it.
+   *
+   * The page is reachable from two places now — the team roster and a bot's
+   * card in the Driving strip — and dropping you somewhere you did not come
+   * from is the thing "path aware" was meant to prevent.
+   */
+  const [agentFrom, setAgentFrom] = useState<'team' | 'driving'>('team');
+  /** Which of that agent's notes is open on its own page, by id. */
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  /** The half-filled Add bot form, up here so it survives that page. */
+  const [botDraft, setBotDraft] = useState<BotDraft>(BLANK_BOT);
+
+  /**
+   * Whether a full page is in front of the board.
+   *
+   * Declared here rather than beside the markup because the board's keyboard
+   * model reads it too: holding the modifier, Option for select mode and the
+   * bare-key shortcuts all have to be off on either page, not just the task
+   * editor. One name, so no part of the app can disagree about which screen
+   * is showing.
+   *
+   * Project context sits on top of a task rather than replacing it: the
+   * editor holds its draft in its own state and its canvas boxes hold theirs
+   * in the DOM, so unmounting for the detour would throw away unsaved work.
+   * Hidden, both survive.
+   */
+  /** A context page — the project's or an agent's — is in front. */
+  const onContextPage = showContext || editingAgent !== null;
+  const onPage = onContextPage || editing !== null;
+  /** Where one step back lands, in words the back button and footer share. */
+  const backLabel =
+    editingNote !== null
+      ? 'the agent'
+      : editingAgent !== null
+        ? agentFrom === 'team'
+          ? 'the team'
+          : 'the board'
+        : onContextPage && editing !== null
+          ? 'the task'
+          : 'the board';
   const boardRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const newTaskRef = useRef<HTMLButtonElement>(null);
+  // The editor's own Type select owns this; the header only mirrors it, so the
+  // accent beside the title follows an unsaved change the way the card does.
+  const [editingType, setEditingType] = useState<TaskType>('feature');
 
   const { session: drag, overlayRef, bindCard } = useCardDrag((id, target) =>
     commitDrop([id], target)
   );
   const draggedTask = drag ? tasks.find((task) => task.id === drag.taskId) : undefined;
   useFlip(boardRef);
+  // The logo is laid out in one place on the board and another in the editor;
+  // this is what makes it travel between them instead of teleporting.
+  useFlip(headerRef);
 
   // The element that opened the modal, so focus can go back to it on close (8.C).
   const openerRef = useRef<HTMLElement | null>(null);
 
-  const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', SEED_ANCHORS);
+  const [anchors, setAnchors] = useLocalStorage<Anchor[]>(k('anchors'), SEED_ANCHORS);
   // Rosters saved before members had a GitHub handle are plain strings. Third
   // shape change today, so it gets a reviver rather than defensive reads.
-  const [team, setTeam] = useLocalStorage<TeamMember[]>('vibetracker.team', DEFAULT_TEAM, (stored) =>
-    stored.map((member) =>
-      typeof member === 'string' ? { name: member as string } : member
-    )
+  const [team, setTeam] = useLocalStorage<TeamMember[]>(k('team'), DEFAULT_TEAM, (stored) =>
+    stored.map((member) => {
+      if (typeof member === 'string') return { name: member as string };
+      // Agents saved before their context was versioned have neither a mode
+      // nor a chain. Filled in here so every consumer can trust the type,
+      // rather than each one coalescing and one of them forgetting.
+      if (!member.agent) return member;
+      return {
+        ...member,
+        agent: {
+          ...member.agent,
+          mode: member.agent.mode ?? 'simple',
+          history: member.agent.history ?? [],
+          notes: member.agent.notes ?? [],
+        },
+      };
+    })
   );
   // The widest tier of prompt context, shared by every task on the board.
+  // Versioned the same way a task's is, and with the same two kinds of
+  // storage: the text itself, plus the patch chain that reproduces any
+  // earlier version. Separate keys rather than one object, so an existing
+  // install keeps its context and simply starts its history from here.
   const [projectContext, setProjectContext] = useLocalStorage<string>(
-    'vibetracker.projectContext',
+    k('projectContext'),
     ''
   );
-  const [allTags, setAllTags] = useLocalStorage<string[]>('vibetracker.tags', [
+  const [projectHistory, setProjectHistory] = useLocalStorage<ContextVersion[]>(
+    k('projectHistory'),
+    []
+  );
+  const [projectMode, setProjectMode] = useLocalStorage<ContextMode>(
+    k('projectContextMode'),
+    'simple'
+  );
+  const [allTags, setAllTags] = useLocalStorage<string[]>(k('tags'), [
     'VIP',
     'System:Clipboard',
   ]);
   // Only the keys someone has explicitly picked a colour for; everything else
   // is handed one automatically.
   const [chosenColors, setChosenColors] = useLocalStorage<Record<string, string>>(
-    'vibetracker.tagColors',
+    k('tagColors'),
     {}
   );
   const tagColors = resolveTagColors(allTags, chosenColors);
   const [chosenMemberColors, setChosenMemberColors] = useLocalStorage<Record<string, string>>(
-    'vibetracker.memberColors',
+    k('memberColors'),
     {}
   );
   const [milestones, setMilestones] = useLocalStorage<Milestone[]>(
-    'vibetracker.milestones',
+    k('milestones'),
     []
   );
-  const [sprints, setSprints] = useLocalStorage<Sprint[]>('vibetracker.sprints', []);
+  const [sprints, setSprints] = useLocalStorage<Sprint[]>(k('sprints'), []);
   const [chosenSprintColors, setChosenSprintColors] = useLocalStorage<Record<string, string>>(
-    'vibetracker.sprintColors',
+    k('sprintColors'),
     {}
   );
   // Same assigner as tags and teammates: automatic by order, overridable.
@@ -242,26 +408,44 @@ export default function App() {
 
   // A card has a name, not a member, so the lookup happens once up here.
   const agents = agentNames(team);
+  // By name rather than by value, so an edit elsewhere cannot leave the open
+  // page pointing at a stale copy.
+  /**
+   * The agent whose context page is open, as one shape whether it is on the
+   * roster or still being typed into the Add bot form. The page is identical
+   * either way; only where the save lands differs.
+   */
+  const agentOnPage: (NonNullable<TeamMember['agent']> & { name: string }) | undefined =
+    editingAgent === 'new'
+      ? { ...botDraft, name: botDraft.name.trim() || 'New bot' }
+      : (() => {
+          const member = team.find((one) => one.name === editingAgent);
+          return member?.agent ? { name: member.name, ...member.agent } : undefined;
+        })();
 
   const memberColors = assignColors(
     team.map((member) => member.name),
     chosenMemberColors
   );
 
-  // First visit follows the OS; after that the stored choice wins.
-  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>(
-    'vibetracker.theme',
-    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  );
-
+  // Arrived from the dashboard with a task in mind. Runs once: `open` needs
+  // no opener here, because focus has nowhere to return to on this page.
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
+    if (openTaskId === null) return;
+    const wanted = tasks.find((task) => task.id === openTaskId);
+    if (wanted) open(wanted, null);
+    onOpenedTask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTaskId]);
 
+  // Keyed on the flag, not on mount: signing in raises the board for the
+  // first time and re-arms this, and a mount-only timer would already have
+  // fired behind the login screen and left the flag stuck on.
   useEffect(() => {
+    if (!entering) return;
     const timer = setTimeout(() => setEntering(false), 900);
     return () => clearTimeout(timer);
-  }, []);
+  }, [entering]);
 
   /**
    * A bare N opens the new-task modal.
@@ -276,8 +460,8 @@ export default function App() {
       n: () => open('new', newTaskRef.current), // focus returns to the button on close
       t: () => setShowTeam(true),
       c: () => setShowContext(true),
-      d: () => setTheme('dark'),
-      l: () => setTheme('light'),
+      d: () => onTheme('dark'),
+      l: () => onTheme('light'),
       m: () => {
         // All, then each milestone, then back to All.
         const ring: (string | null)[] = [null, ...milestones.map((one) => one.id)];
@@ -292,8 +476,14 @@ export default function App() {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTyping(event.target)) return;
       if (document.querySelector('dialog[open]') !== null) return;
-      // The editor is a page, not a dialog, so the check above cannot see it.
-      if (editing !== null) return;
+      // These are pages, not dialogs, so the check above cannot see them.
+      // Nothing on the project context page: it is one long text field and
+      // you are already where C would take you.
+      if (onContextPage) return;
+      // C is the exception on a task: every other shortcut moves the board or
+      // replaces what is being edited, while the project context reads the
+      // same from either page — and its button is on the header there too.
+      if (editing !== null && action !== actions.c) return;
       event.preventDefault();
       action();
     };
@@ -301,7 +491,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
     // `m` reads the milestone list and the open tab, so this one cannot be
     // a mount-only listener the way the others could.
-  }, [milestones, activeMilestone, editing]);
+  }, [milestones, activeMilestone, editing, onContextPage]);
 
   useEffect(() => {
     if (toast === null) return;
@@ -345,7 +535,8 @@ export default function App() {
         ? prev.map((existing) => (existing.id === task.id ? task : existing))
         : [...prev, task]
     );
-    close();
+    // Deliberately does not close: the editor stays open so another change —
+    // or another version — can follow without reopening the task.
   }
 
   // REQUIREMENTS 5.G. The clipboard API needs a secure context and can be
@@ -373,6 +564,21 @@ export default function App() {
     return { project: projectContext, agent: agentFor(task.assignee) };
   }
 
+  /**
+   * Every task change the board itself makes. Returning the task unchanged
+   * skips it.
+   *
+   * Nothing writes `setTasks` with a mapper directly: a drag, a keyboard
+   * carry and a deleted milestone all alter a task just as much as the editor
+   * does, and the task history is only worth reading if it has all of them.
+   * Names come from the lists as they stand before this change lands, which
+   * is what the log wants to freeze.
+   */
+  function reviseTasks(revise: (task: Task) => Task) {
+    const how = naming(milestones, sprints);
+    setTasks((prev) => prev.map((task) => logChange(task, revise(task), how)));
+  }
+
   // The one way a task changes outside the modal — shared by drag-drop and the
   // keyboard carry. A lane sets status, a pill sets sprint; nothing else needs
   // to know which input it came from.
@@ -380,14 +586,12 @@ export default function App() {
   // shortcut: a task holds one sprint, so dropping on a pill moves it out of
   // any sprint it was already in. Revisit when tasks need to carry over.
   function writeDrop(ids: string[], target: DropTarget) {
-    setTasks((prev) =>
-      prev.map((task) =>
-        !ids.includes(task.id)
-          ? task
-          : target.kind === 'status'
-            ? { ...task, status: target.id }
-            : { ...task, sprintId: target.id }
-      )
+    reviseTasks((task) =>
+      !ids.includes(task.id)
+        ? task
+        : target.kind === 'status'
+          ? { ...task, status: target.id }
+          : { ...task, sprintId: target.id }
     );
   }
 
@@ -777,7 +981,7 @@ export default function App() {
   }, [aim, visibleTasks]);
 
   useModifierKey({
-    suspended: editing !== null,
+    suspended: onPage,
     onTap: () => {
       if (grabbed) return placeGrabbed(grabbed);
       focusBoard();
@@ -792,7 +996,7 @@ export default function App() {
    * board and places a carried card, both of which still have to work while
    * picking a group.
    */
-  useBareKeyTap('Alt', editing !== null, () => {
+  useBareKeyTap('Alt', onPage, () => {
     const leaving = selectMode;
     setSelectMode(!leaving);
     setSelected([]);
@@ -1215,10 +1419,8 @@ export default function App() {
     const held = milestoneHolds(id);
 
     setMilestones((prev) => prev.filter((milestone) => milestone.id !== id));
-    setTasks((prev) =>
-      prev.map((task) =>
-        (task.milestoneId ?? null) === id ? { ...task, milestoneId: null } : task
-      )
+    reviseTasks((task) =>
+      (task.milestoneId ?? null) === id ? { ...task, milestoneId: null } : task
     );
     // Sprints filed here would otherwise keep pointing at a milestone that no
     // longer exists. Unfiling them also lets any task that sat under this tab
@@ -1241,12 +1443,10 @@ export default function App() {
   /** A deleted tag comes off every task too, so nothing keeps a dead label. */
   function removeTag(tag: string) {
     setAllTags((prev) => prev.filter((existing) => existing !== tag));
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.tags.includes(tag)
-          ? { ...task, tags: task.tags.filter((existing) => existing !== tag) }
-          : task
-      )
+    reviseTasks((task) =>
+      task.tags.includes(tag)
+        ? { ...task, tags: task.tags.filter((existing) => existing !== tag) }
+        : task
     );
   }
 
@@ -1262,23 +1462,192 @@ export default function App() {
     close();
   }
 
+  /**
+   * Writes one agent's record, wherever it lives — on the roster, or still
+   * in the Add bot draft. Every page that edits an agent goes through here,
+   * so none of them has to know which of the two it is editing.
+   */
+  function reviseAgent(change: (agent: NonNullable<TeamMember['agent']>) => NonNullable<TeamMember['agent']>) {
+    if (editingAgent === 'new') {
+      // The draft is a superset of an agent's record, so the change applies
+      // to it directly and the name it also carries is left alone.
+      return setBotDraft((prev) => ({ ...prev, ...change(prev) }));
+    }
+    setTeam((prev) =>
+      prev.map((member) =>
+        member.name === editingAgent && member.agent
+          ? { ...member, agent: change(member.agent) }
+          : member
+      )
+    );
+  }
+
+  const noteOnPage =
+    editingNote === null ? undefined : agentOnPage?.notes.find((one) => one.id === editingNote);
+
+  /** One screen back: a context page uncovers whatever it was opened over. */
+  function stepBack() {
+    if (showContext) return setShowContext(false);
+    if (editingNote !== null) return setEditingNote(null);
+    if (editingAgent !== null) {
+      setEditingAgent(null);
+      // The dialog it came from, reopened — with its half-filled form intact
+      // in the team case, since that draft lives up here.
+      return setShowTeam(agentFrom === 'team');
+    }
+    close();
+  }
+
+  function goHome() {
+    setShowContext(false);
+    setEditingNote(null);
+    setEditingAgent(null);
+    if (editing !== null) close();
+  }
+
   return (
     <div
       className={`bg-surface-page font-sans ${
         // The editor fills what the header leaves. A viewport-height column
         // measures that; subtracting a hard-coded header height guesses at
         // it, and was a few pixels out.
-        editing !== null ? 'flex h-screen flex-col overflow-hidden' : 'min-h-screen'
+        // Full of its container, not of the viewport: this is a pane beside
+        // the sidebar now, so 100vh would be right only by coincidence.
+        onPage ? 'flex h-full flex-col overflow-hidden' : 'min-h-full'
       }`}
     >
       {/* Background only, no hairline: chrome is a step darker than the content
           area in both themes — pure black in dark, #C2C2C8 in light. */}
-      <header className="sticky top-0 z-20 bg-surface-chrome">
-        {/* Capped in both views: the logo has to sit in the same place on the
-            board and in the editor, and dropping the cap for one of them moved
-            it by half the overflow. The editor's form aligns to this instead
-            — see .editor-gutter. */}
-        <div className="relative mx-auto flex max-w-[1600px] items-center justify-between gap-6 px-6 py-3">
+      {/* A hairline only in the editor: the preview pane butts straight up
+          against the header there, and near black no pair of tones separates
+          them reliably. The board has nothing touching it, so it keeps the
+          borderless look. */}
+      <header
+        ref={headerRef}
+        className={`sticky top-0 z-20 bg-surface-chrome ${
+          onPage ? 'border-b border-line' : ''
+        }`}
+      >
+        {/* A fixed height rather than padding around whatever is tallest: the
+            logo is positioned now, not laid out, so the editor's header — a
+            theme toggle and nothing else — would otherwise come out shorter
+            than the board's and the logo would land at a different height.
+            4.5rem is what the board has always measured. Capped in both views
+            so the logo's travel is between two fixed points; the editor's form
+            aligns to the same cap — see .editor-gutter. */}
+        <div className="relative mx-auto flex h-[4.5rem] max-w-[1600px] items-center justify-end gap-6 px-6">
+          {/* What is being edited, where the logo sits on the board.
+              Always mounted rather than conditional, because something has to
+              be there to fade out; positioned, so it costs the board nothing
+              and the logo keeps the far left. The fade in waits for the logo
+              to be most of the way across. */}
+          <div
+            aria-hidden={!onPage}
+            className={`absolute left-6 top-1/2 flex -translate-y-1/2 items-center gap-2 transition-opacity duration-200 ${
+              onPage ? 'opacity-100 delay-150' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            {/* Escape does this too, but a page needs a visible way out.
+                Disabled rather than merely invisible — an unseen tab stop is
+                still a tab stop.
+
+                One step back, not one home: project context opened from a
+                task returns to that task, which is still mounted behind it. */}
+            <button
+              type="button"
+              disabled={!onPage}
+              onClick={stepBack}
+              aria-label={`Back to ${backLabel}`}
+              title={`Back to ${backLabel} (Esc)`}
+              className="-ml-2 shrink-0 rounded-full p-2 text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              <Icon name="back" className="h-6 w-6" />
+            </button>
+            {onContextPage ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-brand-primary text-white"
+                >
+                  <Icon
+                    name={noteOnPage ? 'list' : editingAgent !== null ? 'robot' : 'brief'}
+                    className="h-4 w-4"
+                  />
+                </span>
+                <h2
+                  id="context-page-title"
+                  className="flex items-baseline gap-1.5 whitespace-nowrap text-base font-semibold text-text-primary"
+                >
+                  {/* The draft's typed alias, not the literal 'new' that
+                      identifies it in state. A note names itself, and says
+                      whose it is in the subtitle. */}
+                  {noteOnPage
+                    ? noteOnPage.title.trim() || 'Untitled note'
+                    : agentOnPage
+                      ? agentOnPage.name
+                      : 'Project Context'}
+                  {noteOnPage ? (
+                    <span className="text-sm font-normal text-text-muted">
+                      · {agentOnPage?.name}'s note
+                    </span>
+                  ) : (
+                    agentOnPage?.role.trim() && (
+                      <span className="text-sm font-normal text-text-muted">
+                        · {agentOnPage.role}
+                      </span>
+                    )
+                  )}
+                </h2>
+              </>
+            ) : (
+              <>
+                {/* The same filled square the card uses. These hues are picked
+                    for a white glyph on them, so they cannot double as text
+                    colours. */}
+                <span
+                  aria-hidden="true"
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded ${TYPE_ACCENT[editingType].fill}`}
+                >
+                  <TypeIcon type={editingType} className="h-4 w-4 text-white" />
+                </span>
+                <h2
+                  id="task-editor-title"
+                  className="flex items-baseline gap-1.5 whitespace-nowrap text-base font-semibold text-text-primary"
+                >
+                  {editing === 'new' ? 'New Task' : 'Edit Task'}
+                  <span className="text-sm font-normal text-text-muted">
+                    · {TYPE_ACCENT[editingType].label}
+                  </span>
+                </h2>
+              </>
+            )}
+          </div>
+
+          {/* The one thing both views share, so it is the thing that moves:
+              far left on the board, dead centre in the editor. The wrapper
+              carries the positioning and the centring transform; the lockup
+              inside carries none, because FLIP animates its transform and
+              would otherwise overwrite the centring mid-flight. */}
+          {/* Only while the sidebar is away: two marks on screen at once
+              would be one too many, and the burger is what brings it back. */}
+          {!sidebarOpen && (
+          <div
+            className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-2 ${
+              onPage ? 'left-1/2 -translate-x-1/2' : 'left-6'
+            }`}
+          >
+            {/* Sized to the lockup beside it rather than to the other
+                header icons: it is the way back to the whole navigation, not
+                a control on this page. */}
+            <button
+              type="button"
+              onClick={onShowSidebar}
+              aria-label="Show the sidebar"
+              title="Show the sidebar"
+              className="-ml-2 shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              <Icon name="menu" className="h-6 w-6" />
+            </button>
           {/* A lockup rather than an icon next to text: the badge is sized to
               the full height of the title + tagline block, so their top and
               bottom edges line up. z-10 keeps it above the text, which is what
@@ -1286,21 +1655,24 @@ export default function App() {
           {/* Clickable only when there is somewhere to go back to, so it is
               not a dead control on the board itself. */}
           <div
-            {...(editing !== null
+            data-flip-id="header-logo"
+            // All the way home, unlike the back button's one step: the mark
+            // means the board, from however deep.
+            {...(onPage
               ? {
                   role: 'button' as const,
                   tabIndex: 0,
-                  onClick: close,
+                  onClick: goHome,
                   onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return;
                     event.preventDefault();
-                    close();
+                    goHome();
                   },
                   title: 'Back to the board',
                 }
               : {})}
             className={`flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
-              editing !== null ? 'cursor-pointer' : ''
+              onPage ? 'cursor-pointer' : ''
             }`}
           >
             {/* Badge and mark both invert with the theme on their own: the badge
@@ -1313,26 +1685,41 @@ export default function App() {
             {/* Clipped, so the slide starts fully hidden behind the badge. */}
             <div className="overflow-hidden py-0.5">
               <div className="anim-slide">
-                <h1 className="text-2xl leading-8 text-text-primary">
-                  <span className="font-semibold">Vibe</span>
-                  <span className="font-normal">Checkr</span>
-                </h1>
+                {/* The product is the eyebrow and the project is the title:
+                    you know which app you are in, and the thing you need to
+                    read at a glance is which project. */}
                 <p className="font-mono text-xs leading-4 text-text-muted">
-                  <i>Track Vibes</i>; <b>Ship Value</b>.
+                  <span className="font-semibold">Vibe</span>Checkr
                 </p>
+                <h1 className="max-w-[18rem] truncate text-2xl leading-8 text-text-primary">
+                  {projectName}
+                </h1>
               </div>
             </div>
           </div>
+          </div>
+          )}
 
           {/* Absolutely centred rather than a third flex child, so it sits in
               the middle of the header regardless of how wide the two sides are,
               and so a second line costs the header no height. Centred on both
               axes now that there are two. pointer-events-none so it can never
               swallow a click — the vibe chip opts back in for its tooltip. */}
+          {/* Sidebar open, on the board: the mark is over there, so this
+              slot carries the page's title and nothing else. On a page the
+              back button and the task's name take it instead. */}
+          {sidebarOpen && !onPage && (
+            <h1 className="absolute left-6 top-1/2 max-w-[22rem] -translate-y-1/2 truncate text-2xl leading-8 text-text-primary">
+              {projectName}
+            </h1>
+          )}
+
           {/* Board furniture: the vibe is a read on the whole project and the
-              shortcuts it advertises are all suspended in the editor. */}
-          {editing === null && (
-            <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
+              shortcuts it advertises are suspended on either page — and this
+              is the spot the logo moves into, so it has to be gone whenever
+              the logo is centred. */}
+          {!onPage && (
+            <div className="anim-fade-late pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
               <VibeMeter tasks={tasks} />
               <p className="font-mono text-xs text-text-muted">
                 hold <Kbd>{MODIFIER_LABEL}</Kbd> for shortcuts
@@ -1343,19 +1730,34 @@ export default function App() {
           <div className="flex items-center gap-3">
             <ThemeToggle
               dark={theme === 'dark'}
-              onChange={(dark) => setTheme(dark ? 'dark' : 'light')}
+              onChange={(dark) => onTheme(dark ? 'dark' : 'light')}
             />
-            {editing !== null ? null : (
+            {/* Outside the conditional below: this is the one header control
+                that reads the same from the board and from a task. Writing a
+                task's context is exactly when you want to see what the
+                project already says, and opening it discards nothing —
+                the task stays mounted underneath. Gone on its own page,
+                where it would be a button to where you already are.
+
+                Not rendered, rather than a `hidden` attribute: preflight's
+                `[hidden]` rule and this button's own `inline-flex` have the
+                same specificity, so the utility wins on source order and the
+                attribute does nothing at all. */}
+            {!onContextPage && (
+              <button
+                type="button"
+                onClick={() => setShowContext(true)}
+                title="Project context (C)"
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              >
+                <Icon name="brief" className="h-4 w-4 shrink-0" />
+                Project Context
+              </button>
+            )}
+            {/* Board-only, on either page: Team opens a dialog over the
+                editor, and New Task would throw away whatever is in it. */}
+            {onPage ? null : (
               <>
-            <button
-              type="button"
-              onClick={() => setShowContext(true)}
-              title="Project context (C)"
-              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-            >
-              <Icon name="brief" className="h-4 w-4 shrink-0" />
-              Context
-            </button>
             <button
               type="button"
               onClick={() => setShowTeam(true)}
@@ -1369,14 +1771,14 @@ export default function App() {
                 32px button + 4px gap + 10px text = 46px, inside the 48px the
                 logo badge already sets. Plain text, not a <Kbd> — a bordered
                 cap is 18px and would push the header taller. */}
-            <div className="flex flex-col items-center gap-1">
+            <div className="ml-3 flex flex-col items-center gap-1">
               <button
                 ref={newTaskRef}
                 type="button"
                 // The board is no longer behind a modal backdrop, so this is
                 // clickable mid-edit — and would throw away whatever is in
                 // the editor. The N shortcut is suppressed for the same reason.
-                disabled={editing !== null}
+                disabled={onPage}
                 onClick={(event) => open('new', event.currentTarget)}
                 title="New task (N)"
                 className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-5 py-1.5 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
@@ -1394,7 +1796,99 @@ export default function App() {
         </div>
       </header>
 
+      {showContext && (
+        <ContextPage
+          noun="project context"
+          intro="The background every task shares. Copying a task's context puts this first, then the agent's role, then the task itself."
+          placeholder={
+            'What is being built, and for whom.\n' +
+            'The stack, and anything unusual about it.\n' +
+            'Conventions worth following, and lines not to cross.'
+          }
+          emptyHint="Nothing written yet. This is the background every task shares."
+          context={projectContext}
+          mode={projectMode}
+          history={projectHistory}
+          returnLabel={backLabel}
+          onSave={(next) => {
+            setProjectContext(next.context);
+            setProjectMode(next.mode);
+            setProjectHistory(next.history);
+          }}
+          onClose={() => setShowContext(false)}
+        />
+      )}
+
+      {editingAgent !== null && agentOnPage && editingNote === null && (
+        <ContextPage
+          // Keyed by name: switching agents has to reseed the draft, which
+          // only a remount does.
+          key={editingAgent}
+          noun="role context"
+          intro={`What ${agentOnPage.name} is for, beyond its role. This is added to every task it is assigned, after the project context and before the task's own.`}
+          placeholder={
+            'What this agent is for, and what it should not touch.\n' +
+            'How it should report back.\n' +
+            'Anything it gets wrong without being told.'
+          }
+          emptyHint="Nothing written yet. Only the role is sent until there is."
+          context={agentOnPage.context}
+          mode={agentOnPage.mode}
+          history={agentOnPage.history}
+          returnLabel={backLabel}
+          // A bot that does not exist yet saves into the draft, and lands on
+          // the roster with its versions already behind it when Add bot is
+          // pressed.
+          onSave={(next) => reviseAgent((agent) => ({ ...agent, ...next }))}
+          notes={{
+            items: agentOnPage.notes,
+            taskTitle: (id) => tasks.find((task) => task.id === id)?.title,
+            onOpen: setEditingNote,
+            onAdd: () => {
+              const note = {
+                id: crypto.randomUUID(),
+                title: '',
+                body: '',
+                taskId: null,
+                history: [],
+              };
+              reviseAgent((agent) => ({ ...agent, notes: [...agent.notes, note] }));
+              setEditingNote(note.id);
+            },
+          }}
+          onClose={stepBack}
+        />
+      )}
+
+      {noteOnPage && (
+        <NotePage
+          key={noteOnPage.id}
+          note={noteOnPage}
+          tasks={tasks}
+          returnLabel={backLabel}
+          onSave={(next) =>
+            reviseAgent((agent) => ({
+              ...agent,
+              notes: agent.notes.map((one) => (one.id === next.id ? next : one)),
+            }))
+          }
+          onDelete={() => {
+            reviseAgent((agent) => ({
+              ...agent,
+              notes: agent.notes.filter((one) => one.id !== noteOnPage.id),
+            }));
+            setEditingNote(null);
+          }}
+          onClose={stepBack}
+        />
+      )}
+
+      {/* Hidden, not unmounted, while the project page is up: the draft lives
+          in the editor's state and its canvas boxes are uncontrolled, so both
+          would go with it. `contents` keeps the section a flex child of the
+          page when it is showing. */}
       {editing !== null ? (
+        <div className={onContextPage ? 'hidden' : 'contents'}>
         <TaskEditor
           // Remounts per task: the form seeds itself on mount, so reusing the
           // instance would carry one task's unsaved edits into another.
@@ -1405,13 +1899,19 @@ export default function App() {
           sprints={sprints}
           allTags={allTags}
           tagColors={tagColors}
-          defaults={newDefaults}
+          memberColors={memberColors}
+          sprintColors={sprintColors}
+          // Recomputed at render rather than stored: a stale counter after a
+          // demo load or a hand-edited store would hand out a duplicate.
+          defaults={{ ...newDefaults, key: Math.max(0, ...tasks.map((one) => one.key)) + 1 }}
           onSave={save}
+          onType={setEditingType}
           onDelete={remove}
           brief={{ project: projectContext, agentFor }}
           onClose={close}
         />
-      ) : (
+        </div>
+      ) : onContextPage ? null : (
       <main className="mx-auto flex max-w-[1600px] flex-col gap-4 px-6 py-4">
         <Enter on={entering} delay={0}>
           <AnchorBoard anchors={anchors} onChange={setAnchorUrl} />
@@ -1423,6 +1923,10 @@ export default function App() {
             team={team}
             onOpenTask={open}
             onNewTask={(assignee, opener) => open('new', opener, { assignee })}
+            onEditAgent={(name) => {
+              setAgentFrom('driving');
+              setEditingAgent(name);
+            }}
             memberColors={memberColors}
           />
         </Enter>
@@ -1711,8 +2215,10 @@ export default function App() {
                                 : // Focus stays on the card while the cursor
                                   // is up in the rows above, but the ring
                                   // should not — two dashed markers at once
-                                  // is exactly the confusion.
-                                  aim === null && highlighted === task.id
+                                  // is exactly the confusion. And a card that
+                                  // was clicked is focused without the board
+                                  // being in a keyboard mode at all.
+                                  keyCursor && aim === null && highlighted === task.id
                                   ? 'highlighted'
                                   : null
                             }
@@ -1732,7 +2238,7 @@ export default function App() {
       </main>
       )}
 
-      {editing === null && <DebugFab onPick={setPendingDemo} />}
+      {!onPage && <DebugFab onPick={setPendingDemo} />}
 
       {pendingDemo && (
         <ConfirmDialog
@@ -1787,9 +2293,7 @@ export default function App() {
             const id = pendingSprintDelete.id;
             setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
             // Tasks survive; they just stop being scheduled.
-            setTasks((prev) =>
-              prev.map((task) => (task.sprintId === id ? { ...task, sprintId: null } : task))
-            );
+            reviseTasks((task) => (task.sprintId === id ? { ...task, sprintId: null } : task));
             if (activeSprint === id) setActiveSprint(null);
             setPendingSprintDelete(null);
             setToast('Sprint deleted.');
@@ -1816,14 +2320,6 @@ export default function App() {
           })()}
           onConfirm={() => removeMilestone(pendingDelete.id)}
           onCancel={() => setPendingDelete(null)}
-        />
-      )}
-
-      {showContext && (
-        <ProjectContextDialog
-          value={projectContext}
-          onChange={setProjectContext}
-          onClose={() => setShowContext(false)}
         />
       )}
 
@@ -1904,6 +2400,22 @@ export default function App() {
             })
           }
           onChange={setTeam}
+          managers={managers}
+          ownerName={ownerName}
+          users={users}
+          invites={invites}
+          viewer={viewer}
+          onProject={onProject}
+          bot={botDraft}
+          onBot={setBotDraft}
+          // The dialog closes behind the page: `showModal` makes everything
+          // outside it inert, so a page underneath would be unusable. Going
+          // back reopens it, with whatever was typed still in it.
+          onEditAgent={(name) => {
+            setShowTeam(false);
+            setAgentFrom('team');
+            setEditingAgent(name);
+          }}
           onClose={() => setShowTeam(false)}
         />
       )}

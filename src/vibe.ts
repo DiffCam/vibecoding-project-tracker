@@ -3,18 +3,30 @@ import type { Task } from './types';
 
 export type VibeZone = 'letsgo' | 'ball' | 'back' | 'over' | 'vibing' | 'whatever' | 'mom';
 
+/**
+ * Every figure here is a sum of task weights, not a count of tasks.
+ *
+ * A board is not twenty equal things: one task worth 8 slipping matters more
+ * than three worth 1 each, and a count says otherwise. Weight defaults to 1,
+ * so a board where nobody estimates reads exactly as it did when these were
+ * counts — the change only shows up once someone says a task is bigger.
+ */
 export type Vibe = {
   zone: VibeZone;
-  /** 0–1. How much of the board has left To Do. */
+  /** 0–1. How much of the board's weight has left To Do. */
   energy: number;
-  /** 0–1. How little of the unfinished work is late. */
+  /** 0–1. How little of the unfinished weight is late. */
   pleasantness: number;
+  /** Weight that has left To Do. */
   moving: number;
+  /** Weight on the board. */
   total: number;
   overdue: number;
   soon: number;
-  /** Tasks not yet done — the only ones that can be late. */
+  /** Weight not yet done — the only work that can be late. */
   active: number;
+  /** How many tasks that weight is spread across, for the reading. */
+  tasks: number;
 };
 
 /**
@@ -57,7 +69,7 @@ const SOON_WEIGHT = 0.5;
 /**
  * The project's mood, as the two axes of the vibe meter.
  *
- * Energy is progression: tasks that have left To Do. A board nobody has
+ * Energy is progression: weight that has left To Do. A board nobody has
  * started has none, and piling on new work lowers it, which is the honest
  * reading — scope added is progress undone.
  *
@@ -65,21 +77,27 @@ const SOON_WEIGHT = 0.5;
  * Done tasks are excluded: a finished task cannot sour the mood, however long
  * it sat there.
  *
+ * Both are weighted by `task.weight`, so an eight-point task slipping moves
+ * the needle eight times as far as a one-pointer. A weight below 1 is treated
+ * as 1: the field is clamped on the way in, but a hand-edited store should
+ * not be able to make a task weigh nothing and vanish from the reading.
+ *
  * Deliberately whole-project. It ignores the milestone tab and the sprint
  * filter, so the vibe does not swing every time the board is narrowed.
  */
 export function vibe(tasks: Task[], now: Date = new Date()): Vibe {
-  const total = tasks.length;
-  const moving = tasks.filter((task) => task.status !== 'todo').length;
+  const weigh = (of: Task[]) => of.reduce((sum, task) => sum + Math.max(1, task.weight || 1), 0);
+
+  const total = weigh(tasks);
+  const moving = weigh(tasks.filter((task) => task.status !== 'todo'));
   const live = tasks.filter((task) => task.status !== 'done');
-  const states = live.map((task) => dueState(task, now));
-  const overdue = states.filter((state) => state === 'overdue').length;
-  const soon = states.filter((state) => state === 'soon').length;
+  const active = weigh(live);
+  const overdue = weigh(live.filter((task) => dueState(task, now) === 'overdue'));
+  const soon = weigh(live.filter((task) => dueState(task, now) === 'soon'));
 
   // An empty board has no mood either way, and dividing by it says nothing.
   const energy = total === 0 ? 0.5 : moving / total;
-  const pleasantness =
-    live.length === 0 ? 1 : 1 - (overdue + soon * SOON_WEIGHT) / live.length;
+  const pleasantness = active === 0 ? 1 : 1 - (overdue + soon * SOON_WEIGHT) / active;
 
   return {
     zone: total === 0 ? 'whatever' : zoneAt(energy, pleasantness),
@@ -89,7 +107,8 @@ export function vibe(tasks: Task[], now: Date = new Date()): Vibe {
     total,
     overdue,
     soon,
-    active: live.length,
+    active,
+    tasks: tasks.length,
   };
 }
 

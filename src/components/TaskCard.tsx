@@ -165,8 +165,20 @@ export default function TaskCard({
               // the ⌘ tap and the modal's focus-return all light the same card.
               onFocus={() => onHighlight(task.id)}
               onBlur={() => onHighlight(null)}
-              className="text-left after:absolute after:inset-0 focus:outline-none"
+              // The dashed ring is the board cursor, which only appears in a
+              // keyboard mode — so Tab still needs a focus indicator of its
+              // own, and a solid one cannot be mistaken for the cursor.
+              className="rounded text-left after:absolute after:inset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
             >
+              {/* Mono and muted so the eye skips it when reading titles and
+                  finds it when looking for one. Inline rather than its own
+                  row: a card is three lines already. */}
+              {/* Both are decorative here and spoken properly below, so the
+                  button's accessible name stays the title alone rather than
+                  "hash twelve, three, Fix the drag handle". */}
+              <span aria-hidden="true" className="font-mono text-xs text-text-muted">
+                #{task.key}
+              </span>{' '}
               {task.title}
             </button>
           </h3>
@@ -189,7 +201,7 @@ export default function TaskCard({
 
         {/* The rail is decorative, so its meaning is said here (NFR 3.B). */}
         <span className="sr-only">
-          {accent.label}
+          Task {task.key}, weight {task.weight}, {accent.label}
           {task.status === 'done'
             ? ', done'
             : countdown
@@ -202,13 +214,32 @@ export default function TaskCard({
           <p className="mt-1 line-clamp-2 text-sm text-text-muted">{task.description}</p>
         )}
 
-        {task.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {task.tags.map((tag) => (
-              <TagChip key={tag} tag={tag} colors={tagColors} />
-            ))}
-          </div>
-        )}
+        {/* Always rendered, because the weight always is. It leads the row
+            so the chip sits in the same place on every card — the tags after
+            it vary in number and width, and anything following them would
+            land somewhere different each time. */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {/* Outlined where tags are filled, so it reads as a measurement
+              rather than another label. Labelled, because a bare number in a
+              row of words is ambiguous. The default stays muted and anything
+              estimated takes full-strength ink, so a glance down the column
+              finds the heavy cards without twenty identical "W:1"s to read
+              past. */}
+          <span
+            aria-hidden="true"
+            title={`Weight ${task.weight}`}
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] ${
+              task.weight === 1
+                ? 'border-line text-text-muted'
+                : 'border-text-primary font-medium text-text-primary'
+            }`}
+          >
+            W:{task.weight}
+          </span>
+          {task.tags.map((tag) => (
+            <TagChip key={tag} tag={tag} colors={tagColors} />
+          ))}
+        </div>
       </div>
     </div>
 

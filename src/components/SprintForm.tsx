@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ColorPicker from './ColorPicker';
-import { MIN_DAYS, sprintEnd } from '../sprints';
+import { MIN_DAYS, shortDate, sprintEnd } from '../sprints';
 import type { Milestone, Sprint } from '../types';
 
 const FIELD =
@@ -134,7 +134,9 @@ export default function SprintForm({
 
           {/* Derived, read-only: the sanity check on the duration above. */}
           <p className="font-mono text-xs text-text-muted">
-            {valid ? `Ends ${sprintEnd({ ...form, days })}` : 'Set a start date and duration'}
+            {valid
+              ? `Ends ${shortDate(sprintEnd({ ...form, days }))}`
+              : 'Set a start date and duration'}
           </p>
 
           <ColorPicker

@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import Icon from './Icon';
+import { MoreBelow, useMoreBelow } from './ScrollEdge';
 import { filledCount, parseCanvas, REASONS, toMarkdown } from '../reasons';
 import type { ReasonKey } from '../reasons';
 import { TAG_INK } from '../tagColor';
@@ -30,13 +32,23 @@ export default function CanvasEditor({
   const current = REASONS.find((entry) => entry.key === open) ?? REASONS[0];
   const done = filledCount(canvas.sections);
 
+  const list = useRef<HTMLDivElement>(null);
+  const { more, sync } = useMoreBelow(list);
+
   function write(key: ReasonKey, body: string) {
     onChange(toMarkdown({ ...canvas, sections: { ...canvas.sections, [key]: body } }));
   }
 
   return (
-    <div className="mt-1 grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)] gap-4">
-      <div className="flex flex-col gap-1.5">
+    // min-h-0 so the two columns scroll inside the editor rather than pushing
+    // the page taller.
+    <div className="mt-1 grid min-h-0 flex-1 grid-cols-[minmax(0,15rem)_minmax(0,1fr)] gap-4">
+      <div className="relative min-h-0">
+      <div
+        ref={list}
+        onScroll={sync}
+        className="flex h-full flex-col gap-1.5 overflow-y-auto pb-6"
+      >
         <p className="font-mono text-[11px] text-text-muted">{done} of 7 written</p>
 
         {REASONS.map((entry) => {
@@ -97,6 +109,8 @@ export default function CanvasEditor({
             </button>
           );
         })}
+      </div>
+        <MoreBelow show={more} fade="from-surface-page" />
       </div>
 
       <div className="flex min-w-0 flex-col">

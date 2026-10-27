@@ -11,6 +11,8 @@
 
   --brand-primary: 0 122 255;   /* #007AFF */
   --brand-accent: 255 45 85;    /* #FF2D55 */
+  --danger: 215 0 21;           /* #D70015 — 5.16:1 on the chrome. The
+                                   pink above reads 3.50 here and fails. */
   --surface-page: 229 229 234;  /* #E5E5EA */
   --surface-card: 245 245 247;  /* #F5F5F7 */
   --text-primary: 29 29 31;     /* #1D1D1F */
@@ -46,8 +48,11 @@
      (ΔE 67 light, 51 dark): one colour should not mean both "press this" and
      "this one is open". */
   --surface-chosen: 191 216 250;      /* #BFD8FA · 1.34 off the card */
-  --surface-preview: 251 251 253;     /* #FBFBFD · 1.21 off the page */
-  --surface-preview-alt: 242 242 245; /* #F2F2F5 · 1.12 off the page, 1.08 off the pane above */
+  /* Darker on top, lighter below. The other way round put #FBFBFD directly
+     under the #FAFAFC header — 1.01 apart, so the top pane and the header
+     read as one surface. */
+  --surface-preview: 242 242 245;     /* #F2F2F5 · 1.08 off the header above it */
+  --surface-preview-alt: 251 251 253; /* #FBFBFD · 1.21 off the page */
   --ink: 29 29 31;              /* #1D1D1F — see note in the dark block */
   /* Fixed in both themes: these are fills behind a white glyph, not text.
      White needs 4.5:1 and gets 6.98 / 5.18 here; on the old #34C759 it was
@@ -90,6 +95,8 @@
 
   --brand-primary: 10 132 255;  /* #0A84FF */
   --brand-accent: 255 55 95;    /* #FF375F */
+  --danger: 255 55 95;          /* #FF375F — 5.40:1 on the dark chrome,
+                                   where the light red drops to 3.53. */
   --surface-page: 28 28 30;     /* #1C1C1E */
   --surface-card: 44 44 46;     /* #2C2C2E */
   --text-primary: 245 245 247;  /* #F5F5F7 */
@@ -114,8 +121,12 @@
      #1C1C1E, so these take most of it. The seam between the two is only 1.06
      here, which is why the panes also carry a hairline between them. */
   --surface-chosen: 54 88 126;        /* #36587E · 1.89 off the card, and brighter than it */
-  --surface-preview: 10 10 12;        /* #0A0A0C · 1.16 off the page */
-  --surface-preview-alt: 18 18 21;    /* #121215 · 1.10 off the page */
+  /* Same order as light. Contrast ratio is a poor measure this close to
+     black — #050507 against #101012 looks plainly different but scores 1.06
+     — so the header carries a hairline in the editor rather than these tones
+     being contorted to satisfy a number that does not describe what is seen. */
+  --surface-preview: 18 18 21;        /* #121215 · 1.10 off the page */
+  --surface-preview-alt: 10 10 12;    /* #0A0A0C · 1.16 off the page */
   /* Deliberately NOT inverted: --ink sits on the due pills, whose fills stay
      bright in both themes. Flipping it to white would drop the yellow pill to
      1.30:1. Dark ink keeps all three pills above 4.9:1 either way. */
@@ -179,6 +190,25 @@
   --badge-lift: 0 1px 2px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
 
+/**
+ * The other thing that floats: an open dropdown list has to read as above the
+ * field rather than beside it, which a hairline on its own does not manage.
+ *
+ * Same reasoning and the same plain-CSS reason as --badge-lift — an alpha
+ * slash will not generate as an arbitrary utility, and a black shadow is
+ * invisible on a dark surface, so dark mode lights the top edge instead.
+ */
+:root {
+  --pop-lift: 0 4px 12px rgb(0 0 0 / 0.18);
+}
+:root.dark {
+  --pop-lift: 0 6px 16px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.14);
+}
+
+.popover-lift {
+  box-shadow: var(--pop-lift);
+}
+
 .sprint-badge {
   box-shadow: var(--badge-lift);
   /* Overshoots, so arriving reads as a pop rather than a grow. */
@@ -210,16 +240,31 @@
   to   { opacity: 1; }
 }
 
+/* Leaving the editor, the logo slides back from the middle of the header to
+   the left — straight across the spot the vibe meter occupies. The delay is
+   the slide's length, so the meter appears in a space the logo has vacated
+   rather than on top of it. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .anim-slide { animation: slide-from-behind 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-rise  { animation: rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-pop   { animation: pop 320ms cubic-bezier(0.22, 1.25, 0.36, 1) both; }
 .anim-drop-into-pill { animation: drop-into-pill 240ms cubic-bezier(0.4, 0, 1, 1) both; }
 .anim-ghost-return   { animation: ghost-return 240ms ease-out both; }
+.anim-fade-late      { animation: fade-in 200ms ease-out 300ms both; }
+/* The sidebar arriving. It is a flex sibling, so the layout shift itself is
+   instant — this is the panel catching up with the space it was given, which
+   is what carries the mark across from the header. */
+.anim-sidebar        { animation: slide-from-behind 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-vibe-ping      { animation: vibe-ping 1800ms cubic-bezier(0, 0, 0.2, 1) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-slide, .anim-rise, .anim-pop,
-  .anim-drop-into-pill, .anim-ghost-return { animation: none; }
+  .anim-drop-into-pill, .anim-ghost-return, .anim-fade-late,
+  .anim-sidebar { animation: none; }
   /* Hidden rather than frozen: parked at full size it is just a stray ring. */
   .anim-vibe-ping { animation: none; opacity: 0; }
   .sprint-badge { transition: none; }

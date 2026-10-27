@@ -10,10 +10,13 @@ export default function Avatar({
   name,
   accent,
   agent = false,
+  small = false,
 }: {
   name: string;
   accent?: string;
   agent?: boolean;
+  /** 20px instead of 24px, to sit inside a form field without growing it. */
+  small?: boolean;
 }) {
   const initials = name
     .split(' ')
@@ -29,11 +32,11 @@ export default function Avatar({
       // Filled when a colour is known. Every palette entry clears 4.5:1 with
       // white, so the initials stay legible whichever one lands.
       style={accent ? { backgroundColor: accent, color: '#FFFFFF' } : undefined}
-      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${
-        accent ? '' : 'border border-line bg-surface-page text-text-primary'
-      }`}
+      className={`flex shrink-0 items-center justify-center rounded-full font-medium ${
+        small ? 'h-5 w-5 text-[9px]' : 'h-6 w-6 text-[10px]'
+      } ${accent ? '' : 'border border-line bg-surface-page text-text-primary'}`}
     >
-      {agent ? <Icon name="robot" className="h-3.5 w-3.5" /> : initials}
+      {agent ? <Icon name="robot" className={small ? 'h-3 w-3' : 'h-3.5 w-3.5'} /> : initials}
     </span>
   );
 }

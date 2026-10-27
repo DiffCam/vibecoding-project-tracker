@@ -26,6 +26,21 @@ export function githubUrl(handle: string): string {
   return `https://github.com/${handle}`;
 }
 
+/**
+ * Cleans a typed email, or returns undefined if it is not one.
+ *
+ * Same contract as the handle, and for the same reason: this becomes a
+ * `mailto:` link, so junk must be refused rather than stored. Deliberately
+ * not an attempt at RFC 5322 — one @, something either side, a dot in the
+ * domain, and no whitespace or characters that could break out of the URL.
+ */
+export function normalizeEmail(raw: string): string | undefined {
+  const email = raw.trim();
+  return /^[^\s@<>"'`]+@[^\s@<>"'`.]+(\.[^\s@<>"'`.]+)+$/.test(email)
+    ? email.toLowerCase()
+    : undefined;
+}
+
 /** Whether a teammate is an agent rather than a person. */
 export function isAgent(member: TeamMember): boolean {
   return member.agent !== undefined;

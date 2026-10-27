@@ -12,10 +12,12 @@ export const STAGES: readonly { id: TaskStatus; label: string }[] = [
 // PRD §8 — the starting roster. The live list is editable and lives in
 // localStorage under 'vibetracker.team'; this is only the first-run default.
 // B and C are placeholders so hand-off is demoable; rename them in the app.
+// Two real-looking people, because the prototype has to demonstrate more
+// than one account. Robin carries an example.com address rather than a GitHub
+// handle — any plausible handle is somebody's.
 export const DEFAULT_TEAM: TeamMember[] = [
   { name: 'Cameron Farr', github: 'DiffCam' },
-  { name: 'Teammate B' },
-  { name: 'Teammate C' },
+  { name: 'Robin Vale', email: 'robin@example.com', role: 'Designer' },
 ];
 
 // REQUIREMENTS 6.B — exactly these four slots, in this order. Only `url` ever

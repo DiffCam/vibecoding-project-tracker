@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import Icon from './Icon';
 import ScrollEdge, { useScrollEdges } from './ScrollEdge';
-import { sprintEnd, sprintNumbers, sprintsForMilestone, UNSCHEDULED } from '../sprints';
+import { shortDate, sprintEnd, sprintNumbers, sprintsForMilestone, UNSCHEDULED } from '../sprints';
 import { accentInk, TAG_INK } from '../tagColor';
 import type { DropTarget } from '../useCardDrag';
 import type { Milestone, Sprint } from '../types';
@@ -214,7 +214,7 @@ export default function SprintsRow({
                 // The count is the one extra fact on the pill, so it is said
                 // properly here rather than left as a bare digit to a reader.
                 aria-label={`${label}, ${count} task${count === 1 ? '' : 's'}`}
-                title={`${count} task${count === 1 ? '' : 's'} · ${sprint.startDate} → ${sprintEnd(sprint)} · ${milestoneName(sprint.milestoneId)}`}
+                title={`${count} task${count === 1 ? '' : 's'} · ${shortDate(sprint.startDate)} → ${shortDate(sprintEnd(sprint))} · ${milestoneName(sprint.milestoneId)}`}
                 className="px-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-primary"
               >
                 {label}

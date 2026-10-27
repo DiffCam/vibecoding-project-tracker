@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Icon from './Icon';
+import { MoreBelow, useMoreBelow } from './ScrollEdge';
 import { parseSections, sectionsToMarkdown } from '../sections';
 import type { CustomSection } from '../sections';
 import { assignColors, TAG_INK } from '../tagColor';
@@ -110,6 +111,11 @@ export default function CustomEditor({
   // sections starting with the same letter never share a badge colour.
   const colours = assignColors(sections.map((section) => section.title));
 
+  const list = useRef<HTMLDivElement>(null);
+  // Adding, removing or opening a form changes the list's height without
+  // changing the box, so the count is a dependency as much as the ref is.
+  const { more, sync } = useMoreBelow(list, [sections.length, draft]);
+
   function write(next: CustomSection[]) {
     onChange(sectionsToMarkdown(preamble, next));
   }
@@ -133,8 +139,15 @@ export default function CustomEditor({
   }
 
   return (
-    <div className="mt-1 grid grid-cols-[minmax(0,16rem)_minmax(0,1fr)] gap-4">
-      <div className="flex flex-col gap-1.5 overflow-y-auto">
+    // min-h-0 so the two columns scroll inside the editor rather than pushing
+    // the page taller.
+    <div className="mt-1 grid min-h-0 flex-1 grid-cols-[minmax(0,16rem)_minmax(0,1fr)] gap-4">
+      <div className="relative min-h-0">
+      <div
+        ref={list}
+        onScroll={sync}
+        className="flex h-full flex-col gap-1.5 overflow-y-auto pb-6"
+      >
         {sections.map((section, index) => {
           if (draft?.index === index) {
             return (
@@ -252,6 +265,8 @@ export default function CustomEditor({
             Add a section
           </button>
         )}
+      </div>
+        <MoreBelow show={more} fade="from-surface-page" />
       </div>
 
       <div className="flex min-w-0 flex-col">

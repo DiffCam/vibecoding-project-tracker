@@ -190,9 +190,13 @@ export default function VibeDialog({
           detail={
             reading.total === 0
               ? 'No tasks yet.'
-              : `${reading.moving} of ${reading.total} ${
-                  reading.total === 1 ? 'task has' : 'tasks have'
-                } left To Do. Adding untouched work brings it down.`
+              : // Weight, not task count — a card worth 8 moves this eight
+                // times as far as one worth 1. Both are shown, because the
+                // two numbers disagreeing is the thing that would read as a
+                // bug on a board where someone has estimated.
+                `${reading.moving} of ${reading.total} weight has left To Do, across ${
+                  reading.tasks
+                } task${reading.tasks === 1 ? '' : 's'}. Adding untouched work brings it down.`
           }
         />
         <Axis
@@ -201,7 +205,7 @@ export default function VibeDialog({
           detail={
             reading.active === 0
               ? 'Nothing unfinished, so nothing can be late.'
-              : `Of ${reading.active} unfinished, ${reading.overdue} overdue and ${reading.soon} due soon. A task that is done cannot be late, however long it sat.`
+              : `Of ${reading.active} unfinished weight, ${reading.overdue} overdue and ${reading.soon} due soon. A task that is done cannot be late, however long it sat.`
           }
         />
       </div>

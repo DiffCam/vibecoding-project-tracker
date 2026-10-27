@@ -21,6 +21,10 @@ export const SEED_TASKS: Task[] = [
     tags: [],
     sprintId: null,
     contextMode: 'simple',
+    history: [],
+    events: [],
+    weight: 1,
+    key: 1,
   },
   {
     id: 'seed-2',
@@ -67,6 +71,10 @@ it cannot be hoisted into an effect.
     tags: ['VIP', 'System:Clipboard'],
     sprintId: null,
     contextMode: 'simple',
+    history: [],
+    events: [],
+    weight: 1,
+    key: 2,
   },
   {
     id: 'seed-3',
@@ -85,6 +93,10 @@ it cannot be hoisted into an effect.
     tags: ['System:Clipboard'],
     sprintId: null,
     contextMode: 'simple',
+    history: [],
+    events: [],
+    weight: 1,
+    key: 3,
   },
   {
     id: 'seed-4',
@@ -103,5 +115,9 @@ it cannot be hoisted into an effect.
     tags: [],
     sprintId: null,
     contextMode: 'simple',
+    history: [],
+    events: [],
+    weight: 1,
+    key: 4,
   },
 ];

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
+import Icon from './Icon';
 
 const CHEVRON = { left: 'M15 18l-6-6 6-6', right: 'M9 18l6-6-6-6' };
 
@@ -31,6 +32,61 @@ export function useScrollEdges(ref: RefObject<HTMLElement | null>, deps: unknown
   }, deps);
 
   return { edges, sync };
+}
+
+/**
+ * Whether a vertical scroller has more content below the fold.
+ *
+ * Separate from `useScrollEdges` rather than an axis on it: this one needs no
+ * "above" half — the fade at the top of a list is the heading it scrolled
+ * under — and the three horizontal callers would all have to be touched to
+ * rename left/right into something axis-neutral.
+ */
+export function useMoreBelow(ref: RefObject<HTMLElement | null>, deps: unknown[] = []) {
+  const [more, setMore] = useState(false);
+
+  function sync() {
+    const el = ref.current;
+    if (!el) return;
+    // 1px of slack: fractional scroll positions never land exactly on the end.
+    setMore(el.scrollTop < el.scrollHeight - el.clientHeight - 1);
+  }
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    sync();
+    // The children too: a card opening resizes the content without resizing
+    // the box it scrolls in, and only the content changed.
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return { more, sync };
+}
+
+/**
+ * Fade and a chevron over the bottom of a vertical scroller, while there is
+ * more below.
+ *
+ * No button, unlike the horizontal pair: a vertical list takes the wheel, and
+ * tabbing to a card past the fold scrolls it into view on its own. This only
+ * has to say that the list does not end where it appears to.
+ */
+export function MoreBelow({ show, fade }: { show: boolean; fade: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-9 items-end justify-center bg-gradient-to-t transition-opacity duration-150 ${fade} ${
+        show ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <Icon name="down" className="h-4 w-4 text-text-muted" />
+    </div>
+  );
 }
 
 /**

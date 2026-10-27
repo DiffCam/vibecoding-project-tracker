@@ -36,12 +36,15 @@ export default function DrivingStrip({
   team,
   onOpenTask,
   onNewTask,
+  onEditAgent,
   memberColors,
 }: {
   tasks: Task[];
   team: TeamMember[];
   onOpenTask: (task: Task, opener: HTMLElement | null) => void;
   onNewTask: (assignee: string, opener: HTMLElement) => void;
+  /** Leaves for a bot's context page, from its overview dialog. */
+  onEditAgent: (name: string) => void;
   /** Resolved per-teammate colours, keyed by name. */
   memberColors: Record<string, string>;
 }) {
@@ -131,6 +134,10 @@ export default function DrivingStrip({
               .filter((task) => task.assignee === member.name && task.status !== 'done')
               .sort(byUrgency);
             const overdue = active.filter((task) => dueState(task) === 'overdue').length;
+            // What they are carrying, not how many things it is split into.
+            // Clamped the same way the vibe meter clamps it, so one hand-
+            // edited zero cannot make a task weigh nothing here either.
+            const weight = active.reduce((sum, task) => sum + Math.max(1, task.weight || 1), 0);
             const split = {
               todo: active.filter((task) => task.status === 'todo').length,
               'in-progress': active.filter((task) => task.status === 'in-progress').length,
@@ -145,31 +152,49 @@ export default function DrivingStrip({
                 {/* Header: the chrome tone. Its ::after covers only this block,
                     so the pills below stay independently clickable. */}
                 <div className="relative p-3">
+                  {/* A lockup: the avatar beside a two-line block of who
+                      they are. Centred against the pair rather than aligned
+                      to the name, which is what stops it reading as a bullet
+                      on the first line. */}
                   <div className="flex items-center gap-2">
                     <Avatar
                       name={member.name}
                       accent={memberColors[member.name]}
                       agent={isAgent(member)}
                     />
-                    <h3 className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">
-                      <button
-                        type="button"
-                        onClick={(event) => openOverview(member.name, event.currentTarget)}
-                        title={`Everything ${member.name} is driving`}
-                        className="max-w-full truncate text-left after:absolute after:inset-0 focus:outline-none focus-visible:underline"
-                      >
-                        {member.name}
-                      </button>
-                    </h3>
-                    {overdue > 0 && (
-                      <span
-                        title={`${overdue} overdue`}
-                        className="shrink-0 rounded-full bg-due-overdue px-1.5 font-mono text-[10px] font-medium text-white"
-                      >
-                        {overdue}
-                      </span>
-                    )}
-                    <span className="font-mono text-xs text-text-muted">{active.length}</span>
+                    {/* A fixed height that centres its contents: two lines
+                        fill it, and a member with no handle gets their name
+                        centred against the avatar rather than sitting high
+                        with a hole underneath. Either way the card is the
+                        same height as the rest of the row. */}
+                    <div className="flex h-9 min-w-0 flex-1 flex-col justify-center">
+                      <h3 className="truncate text-sm font-medium leading-tight text-text-primary">
+                        <button
+                          type="button"
+                          onClick={(event) => openOverview(member.name, event.currentTarget)}
+                          title={`Everything ${member.name} is driving`}
+                          className="max-w-full truncate text-left after:absolute after:inset-0 focus:outline-none focus-visible:underline"
+                        >
+                          {member.name}
+                        </button>
+                      </h3>
+                      {isAgent(member) ? (
+                        <p className="truncate font-mono text-[11px] leading-tight text-text-muted">
+                          {member.agent?.role}
+                        </p>
+                      ) : (
+                        member.github && (
+                          <a
+                            href={githubUrl(member.github)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="relative z-10 min-w-0 truncate font-mono text-[11px] leading-tight text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                          >
+                            @{member.github}
+                          </a>
+                        )
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={(event) => onNewTask(member.name, event.currentTarget)}
@@ -180,34 +205,36 @@ export default function DrivingStrip({
                     </button>
                   </div>
 
-                  <div className="mt-1.5 flex items-center gap-2">
-                    {isAgent(member) ? (
-                      <p className="truncate font-mono text-[11px] text-text-muted">
-                        {member.agent?.role}
-                      </p>
-                    ) : member.github ? (
-                      <a
-                        href={githubUrl(member.github)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="relative z-10 min-w-0 truncate font-mono text-[11px] text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-                      >
-                        @{member.github}
-                      </a>
-                    ) : (
-                      <span />
-                    )}
+                  {/* Always rendered, zeros included: an empty meta row made
+                      the header shorter for idle members, which left a gap at
+                      the bottom of their card. Dots match the lane titles,
+                      which is the key. */}
+                  <div className="mt-1.5 flex items-center justify-end">
+                    <span className="flex shrink-0 items-center gap-2 font-mono text-[11px]">
+                      {/* Overdue is a different kind of number from the four
+                          beside it: it re-counts tasks already in those lanes
+                          rather than adding to them. Three things say so —
+                          a filled red pill where the rest are bare figures,
+                          the "!" where the rest are plain digits, and a rule
+                          separating it from the group that does sum. Absent
+                          at zero, so a red pill always means something. */}
+                      {overdue > 0 && (
+                        <>
+                          <span
+                            title={`${overdue} overdue — already counted in the ${active.length}`}
+                            className="rounded-full bg-due-overdue px-1.5 font-medium text-white"
+                          >
+                            !{overdue}
+                          </span>
+                          <span aria-hidden="true" className="h-3 w-px bg-line" />
+                        </>
+                      )}
 
-                    {/* Always rendered, zeros included: an empty meta row made
-                        the header shorter for idle members, which left a gap at
-                        the bottom of their card. Dots match the lane titles,
-                        which is the key. */}
-                    <span className="ml-auto flex shrink-0 items-center gap-2">
-                        {STAGES.filter((stage) => stage.id !== 'done').map((stage) => (
+                      {STAGES.filter((stage) => stage.id !== 'done').map((stage) => (
                         <span
                           key={stage.id}
                           title={`${split[stage.id as keyof typeof split]} in ${stage.label}`}
-                          className="flex items-center gap-1 font-mono text-[11px] text-text-muted"
+                          className="flex items-center gap-1 text-text-muted"
                         >
                           <span
                             aria-hidden="true"
@@ -216,6 +243,33 @@ export default function DrivingStrip({
                           {split[stage.id as keyof typeof split]}
                         </span>
                       ))}
+
+                      {/* The two totals as one outlined pill, the same shape
+                          the cards wear — they answer the dots to their left
+                          rather than extending them, so they read better as
+                          one object than as two more figures in the row.
+                          T is always worth reading; W only brightens once
+                          someone has estimated and it stops echoing T. */}
+                      <span
+                        title={`${active.length} active task${
+                          active.length === 1 ? '' : 's'
+                        }, ${weight} weight`}
+                        className="inline-flex shrink-0 items-center rounded-full border border-line px-2 py-0.5 text-[10px]"
+                      >
+                        <span className="text-text-primary">T:{active.length}</span>
+                        <span aria-hidden="true" className="px-1 text-text-muted">
+                          |
+                        </span>
+                        <span
+                          className={
+                            weight === active.length
+                              ? 'text-text-muted'
+                              : 'font-medium text-text-primary'
+                          }
+                        >
+                          W:{weight}
+                        </span>
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -313,7 +367,11 @@ export default function DrivingStrip({
             .filter((task) => task.assignee === openMember)
             .sort(byUrgency)}
           accent={memberColors[openMember]}
-          agent={team.some((member) => member.name === openMember && isAgent(member))}
+          agent={team.find((member) => member.name === openMember)?.agent}
+          onEditContext={() => {
+            setOpenMember(null);
+            onEditAgent(openMember);
+          }}
           onOpenTask={(task) => {
             // Hand the opener up, not the row that was clicked — that row
             // unmounts with this dialog, and focus cannot return to a node
