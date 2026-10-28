@@ -237,6 +237,8 @@ export function buildDemo(zone: VibeZone, from: Date = new Date()): Demo {
       history: [],
       events: [],
       weight: 1,
+      outcome: '',
+      outcomeMarkdown: false,
       key: index + 1,
     })),
   };

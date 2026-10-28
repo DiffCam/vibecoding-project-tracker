@@ -49,9 +49,11 @@ export function placeList(
  * the listbox roles, arrow keys, Home/End, Escape, click-away, the focus
  * ring, and returning focus to the button on close.
  *
- * The list is portalled to the body and positioned fixed. The editor's left
- * pane scrolls and the page itself is `overflow-hidden`, so a list positioned
- * inside the field would be clipped by the first ancestor that scrolls.
+ * The list is portalled out and positioned fixed. The editor's left pane
+ * scrolls and the page itself is `overflow-hidden`, so a list positioned
+ * inside the field would be clipped by the first ancestor that scrolls —
+ * but see `host`, because portalling all the way to the body is wrong
+ * inside a modal dialog.
  */
 export default function Picker({
   id,
@@ -61,6 +63,7 @@ export default function Picker({
   disabled = false,
   title,
   rowHeight = 40,
+  tone = 'card',
 }: {
   id: string;
   value: string;
@@ -70,6 +73,15 @@ export default function Picker({
   title?: string;
   /** Roughly how tall one row is. Only the decision to flip uses it. */
   rowHeight?: number;
+  /**
+   * Which surface this sits on, because the field has to differ from it.
+   *
+   * `card` is the default and suits the editor pages, whose panes are the
+   * page colour. On a card-coloured dialog that same fill is the background
+   * — the control disappears — so `page` recesses it and adds the hairline
+   * the dialog's other fields already wear.
+   */
+  tone?: 'card' | 'page';
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -78,6 +90,17 @@ export default function Picker({
   /** Type-ahead buffer: what has been typed, and when, so it can expire. */
   const typed = useRef({ text: '', at: 0 });
   const [box, setBox] = useState({ left: 0, top: 0, width: 0, flip: false });
+
+  /**
+   * Where the list is portalled to.
+   *
+   * The body, unless this sits inside a modal `<dialog>` — one opened with
+   * `showModal()` is in the top layer, which paints above everything in the
+   * body no matter the z-index, so a list portalled out of it would be
+   * hidden behind the dialog that owns it. Fixed positioning still measures
+   * against the viewport either way.
+   */
+  const host = buttonRef.current?.closest('dialog') ?? document.body;
 
   const index = Math.max(
     0,
@@ -163,7 +186,9 @@ export default function Picker({
           event.preventDefault();
           show();
         }}
-        className="relative flex w-full items-center gap-2 overflow-hidden rounded-lg bg-surface-card py-2 pl-3 pr-8 text-left text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+        className={`relative flex w-full items-center gap-2 overflow-hidden rounded-lg py-2 pl-3 pr-8 text-left text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+          tone === 'page' ? 'border border-line bg-surface-page' : 'bg-surface-card'
+        }`}
       >
         {chosen?.face ?? chosen?.row}
         <Icon
@@ -266,7 +291,7 @@ export default function Picker({
               </li>
             ))}
           </ul>,
-          document.body
+          host
         )}
     </>
   );

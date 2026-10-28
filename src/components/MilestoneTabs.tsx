@@ -16,6 +16,7 @@ export default function MilestoneTabs({
   milestones,
   activeId,
   aimedId,
+  heldId,
   onSelect,
   onAdd,
   onDelete,
@@ -26,6 +27,8 @@ export default function MilestoneTabs({
   /** The tab a held sprint is aimed at, if any — `undefined` means none is.
    *  Distinct from null, which is the "All" tab. */
   aimedId?: string | null;
+  /** The tab currently lifted out of the row, if any. */
+  heldId?: string | null;
   onSelect: (id: string | null) => void;
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
@@ -57,6 +60,9 @@ export default function MilestoneTabs({
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         const aimed = aimedId !== undefined && tab.id === aimedId;
+        // In hand: solid where the cursor is dashed, the same pairing the
+        // cards use for "here" against "being carried".
+        const held = heldId != null && tab.id === heldId;
         // A shell rather than one button: the tab holds two controls, and a
         // delete button nested inside a select button is invalid HTML.
         return (
@@ -68,7 +74,11 @@ export default function MilestoneTabs({
             // rather than offset because a tab's whole shape is its attachment
             // to the board, and an outline outside it would fight that.
             className={`flex shrink-0 items-center rounded-t-lg text-sm ${
-              aimed ? 'outline-2 outline-dashed -outline-offset-2 outline-brand-primary' : ''
+              held
+                ? 'outline-2 -outline-offset-2 outline-brand-primary'
+                : aimed
+                  ? 'outline-2 outline-dashed -outline-offset-2 outline-brand-primary'
+                  : ''
             } ${
               active
                 ? 'bg-surface-sunken py-1 font-medium text-text-primary'

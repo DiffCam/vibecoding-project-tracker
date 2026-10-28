@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import ColorPicker from './ColorPicker';
 import ConfirmDialog from './ConfirmDialog';
+import Picker from './Picker';
+import type { Choice } from './Picker';
 import Icon from './Icon';
 import { githubUrl, isAgent, normalizeEmail, normalizeHandle } from '../teamMember';
 import { findUser } from '../users';
@@ -56,6 +58,49 @@ const FIELD =
   'w-full rounded-lg border border-line bg-surface-page px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 const LABEL = 'mb-1 block text-xs text-text-muted';
 const OPTIONAL = <span className="text-text-muted">· optional</span>;
+
+/**
+ * The three things a row can be set to, written out once.
+ *
+ * Each says what it means underneath, because "Manager" on its own does not
+ * tell you what a manager may do — and "Make owner" needs to read as the
+ * one-way act it is before it is chosen, not only in the warning after.
+ */
+const ROLE_CHOICE: Record<'participant' | 'manager' | 'owner', Choice> = {
+  participant: {
+    value: 'participant',
+    label: 'Participant',
+    row: (
+      <span className="flex min-w-0 flex-col">
+        <span className="text-sm text-text-primary">Participant</span>
+        <span className="text-[11px] text-text-muted">Works on the project</span>
+      </span>
+    ),
+    face: <span className="truncate">Participant</span>,
+  },
+  manager: {
+    value: 'manager',
+    label: 'Manager',
+    row: (
+      <span className="flex min-w-0 flex-col">
+        <span className="text-sm text-text-primary">Manager</span>
+        <span className="text-[11px] text-text-muted">Can invite and promote</span>
+      </span>
+    ),
+    face: <span className="truncate">Manager</span>,
+  },
+  owner: {
+    value: 'owner',
+    label: 'Make owner',
+    row: (
+      <span className="flex min-w-0 flex-col">
+        <span className="text-sm text-danger">Make owner…</span>
+        <span className="text-[11px] text-text-muted">Hands the project over</span>
+      </span>
+    ),
+    face: <span className="truncate">Owner</span>,
+  },
+};
 
 export default function TeamDialog({
   team,
@@ -269,7 +314,7 @@ export default function TeamDialog({
             forms off the bottom of the dialog. */}
         <div className="min-w-0">
           <ul className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
-            {team.map((member) => {
+            {team.map((member, index) => {
               const assigned = tasks.filter((task) => task.assignee === member.name).length;
               const blocker =
                 team.length <= 1
@@ -311,38 +356,31 @@ export default function TeamDialog({
                     {member.name === ownerName ? (
                       <span
                         title="Created this project"
-                        className="shrink-0 rounded-full border border-text-primary px-2 py-0.5 text-[10px] font-medium text-text-primary"
+                        className="w-[8.5rem] shrink-0 rounded-lg border border-text-primary bg-surface-page px-3 py-2 text-sm font-medium text-text-primary"
                       >
                         Owner
                       </span>
                     ) : isAgent(member) ? null : roleOptions(member.name).length === 0 ? (
-                      <span className="shrink-0 text-[10px] text-text-muted">
+                      <span className="w-[8.5rem] shrink-0 rounded-lg border border-line bg-surface-page px-3 py-2 text-sm text-text-muted">
                         {managers.includes(member.name) ? 'Manager' : 'Participant'}
                       </span>
                     ) : (
-                      <select
-                        aria-label={`Role for ${member.name}`}
-                        value={managers.includes(member.name) ? 'manager' : 'participant'}
-                        onChange={(event) =>
-                          setRole(
-                            member.name,
-                            event.target.value as 'participant' | 'manager' | 'owner'
-                          )
-                        }
-                        className="shrink-0 rounded-full border border-line bg-surface-card px-2 py-0.5 text-[10px] text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                      >
-                        {roleOptions(member.name).map((role) => (
-                          <option key={role} value={role}>
-                            {role === 'owner'
-                              ? 'Make owner…'
-                              : role[0].toUpperCase() + role.slice(1)}
-                          </option>
-                        ))}
-                      </select>
+                      // The same control the task editor uses, not a native
+                      // select: an 10px dropdown among 24px avatars read as
+                      // an afterthought, and this is the row's real decision.
+                      <span className="w-[8.5rem] shrink-0">
+                        <Picker
+                          id={`role-${index}`}
+                          tone="page"
+                          value={managers.includes(member.name) ? 'manager' : 'participant'}
+                          rowHeight={52}
+                          onChange={(role) =>
+                            setRole(member.name, role as 'participant' | 'manager' | 'owner')
+                          }
+                          choices={roleOptions(member.name).map((role) => ROLE_CHOICE[role])}
+                        />
+                      </span>
                     )}
-                    <span className="shrink-0 text-xs text-text-muted">
-                      {assigned} task{assigned === 1 ? '' : 's'}
-                    </span>
                     <button
                       type="button"
                       disabled={blocker !== null}

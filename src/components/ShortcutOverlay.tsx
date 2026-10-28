@@ -4,7 +4,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
     title: 'Board',
     rows: [
-      [MODIFIER_LABEL, 'Jump to the board'],
+      [MODIFIER_LABEL, 'Jump to the board, or leave it'],
       [`${MODIFIER_LABEL} hold`, 'This list'],
       ['← → ↑ ↓', 'Move between cards'],
       ['↵', 'Open the focused task'],
@@ -21,7 +21,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['← →', 'Change lane'],
       ['↑ ↓', 'In and out of the sprints row'],
       [MODIFIER_LABEL, 'Place'],
-      ['Esc', 'Cancel'],
+      ['⌫', 'Cancel'],
     ],
   },
   {
@@ -36,7 +36,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Space', 'File it under that milestone'],
       ['↓ ↓', 'Back down to the cards'],
       ['Space', 'Add the focused task, keep holding'],
-      ['Esc', 'Put it back'],
+      ['⌫', 'Put it back'],
     ],
   },
   {
@@ -44,13 +44,13 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     // carried card while a group is being picked.
     title: 'Selecting a group',
     rows: [
-      [ALT_LABEL, 'Select mode on and off'],
+      [ALT_LABEL, 'Select mode on, and back one level off'],
       ['Space', 'Take or return a card'],
       ['← → ↑ ↓', 'Move between cards'],
       ['↑', 'Lift the pile out of the cards'],
       ['← →', 'Pick a lane, then ↑ for a sprint'],
       ['Space', 'Drop the pile there'],
-      ['Esc', 'Back out, then leave the mode'],
+      ['⌫', 'Back out, then leave the mode'],
     ],
   },
   {

@@ -44,6 +44,8 @@ export default function ContextPage({
   onClose,
   returnLabel,
   notes,
+  userName,
+  memberColors,
 }: {
   /** Names the thing in the pane titles and on the Copy buttons. */
   noun: string;
@@ -59,6 +61,9 @@ export default function ContextPage({
   onClose: () => void;
   /** Where Cancel and the footer say you are going. */
   returnLabel: string;
+  /** The signed-in account, stamped on each version it saves. */
+  userName: string;
+  memberColors: Record<string, string>;
   /**
    * An agent's notes, and the two ways to act on them. Absent for the
    * project tier, which has no agent to keep them — the third tab appears
@@ -105,6 +110,7 @@ export default function ContextPage({
       history: changed
         ? recordVersion(history, basedOn, {
             at: new Date().toISOString(),
+            by: userName,
             mode: draftMode,
             context: draft,
           })
@@ -236,6 +242,7 @@ export default function ContextPage({
                 <HistoryList
                   history={history}
                   basedOn={basedOn}
+                  memberColors={memberColors}
                   onPick={(index) => {
                     // Loads the version into the editor without writing
                     // anything — including the view it was written in.

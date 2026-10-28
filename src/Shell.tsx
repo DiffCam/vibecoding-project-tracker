@@ -156,6 +156,7 @@ export default function Shell() {
             key={open.id}
             projectId={open.id}
             projectName={open.name}
+            userName={account.name}
             theme={theme}
             onTheme={setTheme}
             openTaskId={jumpTo}

@@ -18,8 +18,9 @@ export type Splice = { at: number; remove: number; insert: string };
  * A saved state of a task's context. Nothing about the project or agent
  * tiers — those are shared and not versioned per task.
  *
- * No "saved by": there is no sign-in here, and the assignee is not reliably
- * the person who edited, so a name on these cards would usually be wrong.
+ * `by` is the account that saved it. It used to be left out — there was no
+ * sign-in, and the assignee is not reliably the person who edited — but
+ * there is one now, so the record can name somebody honestly.
  */
 export type ContextVersion = {
   /** ISO timestamp of the save. */
@@ -28,7 +29,49 @@ export type ContextVersion = {
   mode: ContextMode;
   /** Turns the previous version into this one; the first turns '' into it. */
   patch: Splice;
+  /** The signed-in account that saved it. Empty on versions predating sign-in. */
+  by?: string;
 };
+
+/** How much moved, in lines. */
+export type LineStat = { added: number; removed: number; modified: number };
+
+/**
+ * What changed between two versions, counted in lines.
+ *
+ * Common lines are trimmed from both ends and whatever is left in the middle
+ * is the change. Lines that line up across that middle are counted as
+ * modified, and the surplus on either side as added or removed — so
+ * rewording a line reads as one modification rather than as a deletion and
+ * an insertion, which is what anyone scanning the list actually wants.
+ *
+ * The same prefix/suffix idea as `diff`, one level up. Not a minimal diff:
+ * two changes far apart make everything between them look modified. That is
+ * the same bargain the patches themselves make, and for a few paragraphs of
+ * context it costs nothing but an occasional over-count.
+ */
+export function lineStat(before: string, after: string): LineStat {
+  // A genuinely empty document has no lines; ''.split('\n') claims one.
+  const old = before === '' ? [] : before.split('\n');
+  const now = after === '' ? [] : after.split('\n');
+
+  let head = 0;
+  while (head < old.length && head < now.length && old[head] === now[head]) head++;
+
+  let tail = 0;
+  while (
+    tail < old.length - head &&
+    tail < now.length - head &&
+    old[old.length - 1 - tail] === now[now.length - 1 - tail]
+  ) {
+    tail++;
+  }
+
+  const gone = old.length - head - tail;
+  const came = now.length - head - tail;
+  const modified = Math.min(gone, came);
+  return { added: came - modified, removed: gone - modified, modified };
+}
 
 /** The patch that turns `before` into `after`. */
 export function diff(before: string, after: string): Splice {

@@ -13,9 +13,49 @@ export type FieldChange = { label: string; from: string; to: string };
  * task used to be in.
  */
 export type TaskEvent = {
+  kind: 'change';
   at: string;
   changes: FieldChange[];
+  /** The account that saved it. Absent on events predating sign-in. */
+  by?: string;
 };
+
+/**
+ * Something a person said about the task.
+ *
+ * Lives in the same list as the changes, not beside it. "Rejecting because
+ * the drag handle still swallows clicks" followed immediately by the status
+ * going back to In Progress is one story, and two lists would make the
+ * reader assemble it from timestamps.
+ *
+ * That shared list is also what makes the numbering useful: #4 is the fourth
+ * thing that happened to this task, whether it was said or done.
+ */
+export type TaskComment = {
+  kind: 'comment';
+  at: string;
+  by: string;
+  body: string;
+  /** Rendered as markdown rather than plain text. Off by default. */
+  markdown?: boolean;
+};
+
+/** One line of the task's activity, said or done. */
+export type TaskEntry = TaskEvent | TaskComment;
+
+/**
+ * Entries as stored before comments existed, which have no discriminator.
+ * Everything already written is a change.
+ */
+export function reviveEntries(stored: TaskEntry[] | undefined): TaskEntry[] {
+  // Typed loosely on the way in: what is on disk predates the union, so it
+  // does not satisfy it until this has run.
+  return ((stored ?? []) as Partial<TaskEvent>[]).map((entry) =>
+    entry.kind === undefined
+      ? ({ ...entry, kind: 'change' } as TaskEvent)
+      : (entry as TaskEntry)
+  );
+}
 
 /** Turns ids into the names they had when the change was made. */
 export type Naming = {
@@ -109,10 +149,16 @@ export function naming(milestones: Milestone[], sprints: Sprint[]): Naming {
  * is a record of what happened to the task rather than only of what was typed
  * on its page.
  */
-export function logChange(before: Task, after: Task, how: Naming): Task {
+export function logChange(before: Task, after: Task, how: Naming, by: string): Task {
   const changes = describeChanges(before, after, how);
   if (changes.length === 0) return after;
-  return { ...after, events: [...after.events, { at: new Date().toISOString(), changes }] };
+  return {
+    ...after,
+    events: [
+      ...after.events,
+      { kind: 'change', at: new Date().toISOString(), by, changes },
+    ],
+  };
 }
 
 /** The context's own line in the list: a jump between version numbers. */

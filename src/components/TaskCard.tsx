@@ -59,6 +59,7 @@ export default function TaskCard({
   sprint,
   agent = false,
   lifted,
+  refused = false,
   isOverlay = false,
 }: {
   task: Task;
@@ -78,6 +79,8 @@ export default function TaskCard({
    *  hiding a keyboard-carried card blurred it and the arrows stopped reaching
    *  the board's handler. */
   lifted?: keyof typeof LIFTED;
+  /** Set briefly when this card has just refused something dropped on it. */
+  refused?: boolean;
   /** The copy under the cursor — already lifted, so no hover or selection state. */
   isOverlay?: boolean;
 }) {
@@ -111,7 +114,7 @@ export default function TaskCard({
     // with the card instead of staying flat on top of it, and rounded-lg keeps
     // the shadow and outline on the card's corners.
     <div className={`relative rounded-lg ${ring ? SELECTION[ring] : ''}`}>
-    <div className={`relative rounded-lg ${lifted ? LIFTED[lifted] : ''}`}>
+    <div className={`relative rounded-lg ${lifted ? LIFTED[lifted] : ''} ${refused ? 'anim-shake' : ''}`}>
     <div
       onPointerDown={onPointerDown}
       className={`relative flex touch-none select-none overflow-hidden rounded-lg border border-line bg-surface-card ${

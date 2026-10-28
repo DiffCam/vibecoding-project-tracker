@@ -24,6 +24,8 @@ export const SEED_TASKS: Task[] = [
     history: [],
     events: [],
     weight: 1,
+    outcome: '',
+    outcomeMarkdown: false,
     key: 1,
   },
   {
@@ -74,6 +76,8 @@ it cannot be hoisted into an effect.
     history: [],
     events: [],
     weight: 1,
+    outcome: '',
+    outcomeMarkdown: false,
     key: 2,
   },
   {
@@ -96,6 +100,8 @@ it cannot be hoisted into an effect.
     history: [],
     events: [],
     weight: 1,
+    outcome: '',
+    outcomeMarkdown: false,
     key: 3,
   },
   {
@@ -118,6 +124,8 @@ it cannot be hoisted into an effect.
     history: [],
     events: [],
     weight: 1,
+    outcome: '',
+    outcomeMarkdown: false,
     key: 4,
   },
 ];

@@ -11,6 +11,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import ContextPage from './components/ContextPage';
 import NotePage from './components/NotePage';
 import DebugFab from './components/DebugFab';
+import OutcomeDialog from './components/OutcomeDialog';
 import DrivingStrip from './components/DrivingStrip';
 import Icon from './components/Icon';
 import Logo from './components/Logo';
@@ -24,13 +25,14 @@ import SearchDialog, { FilterTag } from './components/SearchDialog';
 import SprintForm from './components/SprintForm';
 import SelectionStack, { stackSpread, STACK_LAYERS } from './components/SelectionStack';
 import SprintsRow, { ALL_PILL } from './components/SprintsRow';
+import ShortcutBar from './components/ShortcutBar';
 import ShortcutOverlay from './components/ShortcutOverlay';
 import TeamDialog, { BLANK_BOT } from './components/TeamDialog';
 import type { BotDraft } from './components/TeamDialog';
 import ThemeToggle from './components/ThemeToggle';
 import VibeMeter from './components/VibeMeter';
 import { agentNames } from './teamMember';
-import { logChange, naming } from './taskHistory';
+import { logChange, naming, reviveEntries } from './taskHistory';
 import { toPromptContext } from './promptContext';
 import type { Brief } from './promptContext';
 import { buildDemo } from './demoData';
@@ -53,8 +55,8 @@ import { useLocalStorage } from './useLocalStorage';
 import { key as scopedKey } from './projects';
 import type { User } from './users';
 import type { Invite, Project } from './projects';
+import type { BoardState } from './boardHints';
 import {
-  ALT_LABEL,
   isTyping,
   MODIFIER_LABEL,
   useBareKeyTap,
@@ -136,6 +138,7 @@ export default function App({
   onOpenedTask,
   sidebarOpen,
   onShowSidebar,
+  userName,
   managers,
   ownerName,
   users,
@@ -155,6 +158,8 @@ export default function App({
   /** The mark and the burger appear here only while the sidebar is away. */
   sidebarOpen: boolean;
   onShowSidebar: () => void;
+  /** The signed-in account, stamped on every version saved from this page. */
+  userName: string;
   /** The project's managers and its owner, edited from the Team dialog —
       the only place the roster is already in front of you. */
   managers: string[];
@@ -191,7 +196,9 @@ export default function App({
       contextMode:
         task.contextMode ?? ((task as { canvas?: boolean }).canvas ? 'spdd' : 'simple'),
       history: task.history ?? [],
-      events: task.events ?? [],
+      events: reviveEntries(task.events),
+      outcome: task.outcome ?? '',
+      outcomeMarkdown: task.outcomeMarkdown ?? false,
       key: task.key ?? next++,
     }));
   });
@@ -268,6 +275,10 @@ export default function App({
   /** A context page — the project's or an agent's — is in front. */
   const onContextPage = showContext || editingAgent !== null;
   const onPage = onContextPage || editing !== null;
+  /** How far in the header's left-anchored things start, so the burger has
+   *  somewhere to be when the sidebar is away. */
+  const LEFT = sidebarOpen ? 'left-6' : 'left-[4.5rem]';
+
   /** Where one step back lands, in words the back button and footer share. */
   const backLabel =
     editingNote !== null
@@ -378,6 +389,8 @@ export default function App({
    * on top of the pile — is the last entry.
    */
   const [selectMode, setSelectMode] = useState(false);
+  /** Where Option was pressed from, so leaving can go back there. */
+  const [selectFrom, setSelectFrom] = useState<'keyboard' | 'cold'>('cold');
   const [selected, setSelected] = useState<string[]>([]);
   /**
    * Where the cursor is once it leaves the cards, in either mode; null while it
@@ -394,6 +407,26 @@ export default function App({
    * the same kind of thing as carrying one card. Select mode is for groups.
    */
   const [heldSprint, setHeldSprint] = useState<{ id: string | null } | null>(null);
+  /**
+   * A milestone lifted out of the tabs row.
+   *
+   * The mirror of carrying a sprint: instead of taking a sprint up to a
+   * milestone, take the milestone down to whatever should go in it. Both are
+   * single-item moves, so neither lives in select mode.
+   */
+  const [heldMilestone, setHeldMilestone] = useState<string | null>(null);
+  /** A card that just refused a milestone, cleared by its own timer. */
+  const [refused, setRefused] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (refused === null) return;
+    const timer = setTimeout(() => setRefused(null), 400);
+    return () => clearTimeout(timer);
+  }, [refused]);
+
+  /** The task that just reached Done, waiting on its outcome notes. */
+  const [pendingOutcome, setPendingOutcome] = useState<string | null>(null);
+
   const [pendingSprintFile, setPendingSprintFile] = useState<{
     sprintId: string;
     milestoneId: string | null;
@@ -576,7 +609,7 @@ export default function App({
    */
   function reviseTasks(revise: (task: Task) => Task) {
     const how = naming(milestones, sprints);
-    setTasks((prev) => prev.map((task) => logChange(task, revise(task), how)));
+    setTasks((prev) => prev.map((task) => logChange(task, revise(task), how, userName)));
   }
 
   // The one way a task changes outside the modal — shared by drag-drop and the
@@ -700,10 +733,34 @@ export default function App({
         ? 'No sprint'
         : `Sprint ${sprintNos[heldSprint.id]}`;
 
+  /**
+   * Whatever is in hand, as the chip that follows the cursor.
+   *
+   * One shape for both carries: a sprint wears its own colour, a milestone
+   * the "chosen" fill the canvas cards use, so the two are never mistaken
+   * for each other mid-flight. Only one can be held at a time — picking
+   * either up needs empty hands.
+   */
+  const heldChip: { label: string; background: string; ink: string } | null =
+    heldSprint !== null
+      ? {
+          label: heldLabel,
+          background:
+            heldSprint.id === null ? 'rgb(var(--text-primary))' : sprintColors[heldSprint.id],
+          ink: heldSprint.id === null ? 'rgb(var(--surface-card))' : TAG_INK,
+        }
+      : heldMilestone !== null
+        ? {
+            label: milestones.find((one) => one.id === heldMilestone)?.name ?? 'Milestone',
+            background: 'rgb(var(--surface-chosen))',
+            ink: 'rgb(var(--text-primary))',
+          }
+        : null;
+
   const [heldAt, setHeldAt] = useState<{ left: number; top: number } | null>(null);
 
   useEffect(() => {
-    if (heldSprint === null) {
+    if (heldSprint === null && heldMilestone === null) {
       setHeldAt(null);
       return;
     }
@@ -725,7 +782,7 @@ export default function App({
     const box = target.getBoundingClientRect();
     // Bottom-centre of the chip, so one rule covers a card, a pill and a tab.
     setHeldAt({ left: box.left + box.width / 2, top: box.top - CHIP_GAP });
-  }, [heldSprint, aim, highlighted, sprints, activeMilestone]);
+  }, [heldSprint, heldMilestone, aim, highlighted, sprints, activeMilestone]);
 
   const carriedTask = grabbed ? tasks.find((task) => task.id === grabbed.id) : undefined;
   // Only while it is actually floating: aimed at a lane, the card stays put.
@@ -781,6 +838,30 @@ export default function App({
         return false;
       }
     }
+    // Reaching Done is the one moment anyone remembers what happened, so it
+    // is the one worth interrupting. Only a real arrival counts — dropping a
+    // card already in Done back into it asks nothing.
+    if (target.kind === 'status' && target.id === 'done') {
+      const arriving = ids.filter(
+        (id) => tasks.find((one) => one.id === id)?.status !== 'done'
+      );
+      if (arriving.length === 1) {
+        writeDrop(ids, target);
+        returnFocusTo.current = highlighted;
+        setPendingOutcome(arriving[0]);
+        return true;
+      }
+      if (arriving.length > 1) {
+        // Asking once for several would attach one note to all of them, and
+        // asking several times in a row is a queue nobody wants.
+        writeDrop(ids, target);
+        setToast(
+          `${arriving.length} tasks set to Done together — outcome notes are per task, so set them in each editor if you want them.`
+        );
+        return true;
+      }
+    }
+
     writeDrop(ids, target);
     return true;
   }
@@ -929,6 +1010,7 @@ export default function App({
       setSelectMode(false);
       setAim(null);
       setHeldSprint(null);
+      setHeldMilestone(null);
       if (selected.length > 0) {
         setSelected([]);
         setToast('Selection discarded.');
@@ -941,14 +1023,15 @@ export default function App({
   // Reaching for the mouse ends the sprint carry too — nothing is written
   // until it is dropped, so there is nothing to place, just to let go of.
   useEffect(() => {
-    if (heldSprint === null && aim === null) return;
+    if (heldSprint === null && heldMilestone === null && aim === null) return;
     const leave = () => {
       setHeldSprint(null);
+      setHeldMilestone(null);
       setAim(null);
     };
     window.addEventListener('pointerdown', leave);
     return () => window.removeEventListener('pointerdown', leave);
-  }, [heldSprint, aim]);
+  }, [heldSprint, heldMilestone, aim]);
 
   // Tap Cmd/Ctrl to jump straight to the board — Tab would take eight presses
   // to get past the header, deliverables and driving strip. Mid-carry the same
@@ -980,10 +1063,54 @@ export default function App({
     focusBoard();
   }, [aim, visibleTasks]);
 
+  /**
+   * The board's "undo this step" key.
+   *
+   * Backspace, not Escape: on macOS Escape leaves full screen, so a board
+   * driven from the keyboard in a full-screen window could not back out of
+   * a carry without also losing the window. Dialogs keep Escape — the
+   * browser implements it for `<dialog>`, and it is the convention there.
+   */
+  const BACK_KEY = 'Backspace';
+
+  /**
+   * Whether the keyboard is currently driving the board.
+   *
+   * The same condition the hint strip reads, so the modifier can only exit a
+   * mode the strip says you are in.
+   */
+  const armed =
+    keyCursor &&
+    (grabbed !== null ||
+      heldSprint !== null ||
+      heldMilestone !== null ||
+      aim !== null ||
+      highlighted !== null);
+
+  /**
+   * Hands the board back to the mouse.
+   *
+   * Blurring matters as much as the flag: the dashed cursor needs a focused
+   * card as well as an armed flag, so leaving one behind would keep it lit.
+   */
+  function leaveKeyboard() {
+    setAim(null);
+    setGrabbed(null);
+    setHeldSprint(null);
+    setHeldMilestone(null);
+    (document.activeElement as HTMLElement | null)?.blur();
+    setKeyCursor(false);
+  }
+
   useModifierKey({
     suspended: onPage,
     onTap: () => {
+      // Placing still wins: mid-carry the tap is the commit, and losing a
+      // card to an accidental exit is worse than having to press twice.
       if (grabbed) return placeGrabbed(grabbed);
+      // Otherwise the one key both enters and leaves, which is what makes it
+      // safe to press when you are not sure which you are in.
+      if (armed) return leaveKeyboard();
       focusBoard();
     },
     onHoldChange: setShowShortcuts,
@@ -995,20 +1122,36 @@ export default function App({
    * A different key from the Cmd/Ctrl tap on purpose: that one jumps to the
    * board and places a carried card, both of which still have to work while
    * picking a group.
+   *
+   * Leaving goes back one level rather than all the way out: arriving from
+   * the single-card cursor returns to it, and arriving cold returns the
+   * board to the mouse. Remembered on the way in, because by the time you
+   * leave, the state that would have told us is gone.
    */
   useBareKeyTap('Alt', onPage, () => {
-    const leaving = selectMode;
-    setSelectMode(!leaving);
+    if (selectMode) {
+      setSelectMode(false);
+      setSelected([]);
+      setAim(null);
+      if (selectFrom === 'keyboard') {
+        focusBoard();
+        setToast('Select mode off · back to single selection.');
+      } else {
+        leaveKeyboard();
+        setToast('Select mode off.');
+      }
+      return;
+    }
+
+    setSelectFrom(armed ? 'keyboard' : 'cold');
+    setSelectMode(true);
     setSelected([]);
     setAim(null);
     setHeldSprint(null);
+    setHeldMilestone(null);
     setGrabbed(null); // a single carry and a group selection cannot both be live
-    if (!leaving) focusBoard();
-    setToast(
-      leaving
-        ? 'Select mode off.'
-        : 'Select mode · Space picks cards · ↑ to the sprints · Space drops · Esc exits'
-    );
+    focusBoard();
+    setToast('Select mode · Space picks cards · ↑ to the sprints · Space drops · ⌫ exits');
   });
 
   /**
@@ -1116,6 +1259,11 @@ export default function App({
     // Undefined when focus is on Copy Context, or on the board itself because
     // nothing is left to focus. That is only workable with the cursor up in
     // the rows, where the position is state rather than DOM focus.
+    // Backspace is the board's back key now, and Backspace in a field is a
+    // deletion. Nothing inside the board takes typed input today, so this is
+    // insurance against the first thing that does.
+    if (isTyping(event.target)) return;
+
     const id = (event.target as HTMLElement).dataset.cardId;
     if (id === undefined && aim === null) return;
 
@@ -1133,7 +1281,7 @@ export default function App({
     const mine =
       isArrow ||
       key === ' ' ||
-      key === 'Escape' ||
+      key === BACK_KEY ||
       (key === 'Enter' && (aim !== null || grabbed !== null));
     if (!mine) return;
 
@@ -1155,7 +1303,10 @@ export default function App({
     // something.
     const ladder: Row[] = selectMode
       ? ['cards', ...(selected.length > 0 ? (['status', 'sprint'] as Row[]) : [])]
-      : ['cards', 'sprint', ...(heldSprint?.id != null ? (['milestone'] as Row[]) : [])];
+      : // The tabs are always reachable now: a milestone can be picked up
+        // from there, so the row has to be somewhere you can get to with
+        // nothing in hand.
+        ['cards', 'sprint', 'milestone'];
 
     // "All" joins the sprints row only while nothing is being carried: it is
     // a filter, not a place anything can be dropped.
@@ -1224,7 +1375,7 @@ export default function App({
     if (selectMode) {
       event.preventDefault();
 
-      if (key === 'Escape') {
+      if (key === BACK_KEY) {
         // Two stages: back out of the upper rows first, keeping the selection.
         // A stray Escape should not cost a pile of a dozen cards.
         if (aim !== null) {
@@ -1276,7 +1427,7 @@ export default function App({
     if (id !== undefined && grabbed !== null && grabbed.id === id) {
       const target = grabbed.target;
 
-      if (key === 'Escape') {
+      if (key === BACK_KEY) {
         event.preventDefault();
         setGrabbed(null); // nothing was written, so there is nothing to undo
         setToast('Move cancelled.');
@@ -1308,20 +1459,28 @@ export default function App({
     // The cursor has left the cards, or a sprint is in hand. Moving one sprint
     // is a single-item action, the same kind of thing as carrying one card —
     // which is why it lives out here and not in select mode.
-    if (aim !== null || heldSprint !== null) {
+    if (aim !== null || heldSprint !== null || heldMilestone !== null) {
       event.preventDefault();
 
       // Empty hands: Enter activates whatever the cursor is on, which for a
       // pill means its filter. A milestone tab is left alone — switching the
       // board there would move the rows out from under a carried sprint.
-      if (key === 'Enter' && heldSprint === null) {
+      if (key === 'Enter' && heldSprint === null && heldMilestone === null) {
         if (aim?.kind === 'sprint') toggleSprintFilter(aim.id);
+        // Switching tabs is safe with empty hands. Mid-carry it is not: the
+        // rows would move out from under whatever is being held.
+        if (aim?.kind === 'milestone') setActiveMilestone(aim.id);
         return;
       }
 
-      if (key === 'Escape') {
+      if (key === BACK_KEY) {
         // Same two stages as the pile: step back down before letting go.
         if (aim !== null) return setAim(null);
+        if (heldMilestone !== null) {
+          setHeldMilestone(null);
+          setToast('Milestone put back.');
+          return;
+        }
         setHeldSprint(null);
         setToast('Sprint put back.');
         return;
@@ -1329,16 +1488,69 @@ export default function App({
 
       // Holding something, Enter commits alongside Space.
       if (key === ' ' || key === 'Enter') {
+        // A milestone in hand takes precedence: it is the outer container,
+        // and everything below it is something that can go inside.
+        if (heldMilestone !== null) {
+          const name = milestones.find((one) => one.id === heldMilestone)?.name ?? 'the milestone';
+
+          if (aim?.kind === 'milestone') {
+            // Back on its own tab puts it down. Any other tab is not a place
+            // a milestone goes.
+            if (aim.id === heldMilestone) setHeldMilestone(null);
+            return;
+          }
+
+          if (aim?.kind === 'sprint') {
+            // Every task in the sprint moves tab with it, so this is the
+            // same consequential write the sprint carry already confirms.
+            if (aim.id === null || aim.id === ALL_PILL) return;
+            returnFocusTo.current = highlighted;
+            setPendingSprintFile({ sprintId: aim.id, milestoneId: heldMilestone });
+            return;
+          }
+
+          // Down among the cards: the focused task joins the milestone, and
+          // the milestone stays in hand so a run of cards can be filed.
+          if (id === undefined) return;
+          const task = tasks.find((one) => one.id === id);
+          if (task === undefined) return;
+          if (task.sprintId !== null) {
+            // A sprint already decides this task's milestone — the editor
+            // disables the field for the same reason. Refuse visibly rather
+            // than silently doing nothing.
+            setRefused(id);
+            setToast('Its sprint sets the milestone. Take it out of the sprint first.');
+            return;
+          }
+          if ((task.milestoneId ?? null) === heldMilestone) {
+            setToast(`Already in ${name}.`);
+            return;
+          }
+          reviseTasks((one) => (one.id === id ? { ...one, milestoneId: heldMilestone } : one));
+          setToast(`Filed under ${name} · still holding it.`);
+          return;
+        }
+
         if (heldSprint === null) {
           // On a pill with empty hands, Space lifts the sprint out of the row.
           // "No sprint" is a filter rather than a sprint, so nothing to take.
           // "All" is not a sprint, so there is nothing on it to pick up.
+          if (aim?.kind === 'milestone') {
+            // "All" is a view, not a milestone, so there is nothing on it
+            // to take.
+            if (aim.id === null) return;
+            setHeldMilestone(aim.id);
+            setToast(
+              `Holding ${milestones.find((one) => one.id === aim.id)?.name ?? 'a milestone'}. ↓ to a sprint or a task to file it, ⌫ to put it back.`
+            );
+            return;
+          }
           if (aim?.kind === 'sprint' && aim.id !== ALL_PILL) {
             setHeldSprint({ id: aim.id });
             setToast(
               aim.id === null
-                ? 'Holding No sprint. ↓ to a task to take it out of its sprint, Esc to put it back.'
-                : `Holding Sprint ${sprintNos[aim.id]}. ↑ to a milestone, ↓ to a task, Esc to put it back.`
+                ? 'Holding No sprint. ↓ to a task to take it out of its sprint, ⌫ to put it back.'
+                : `Holding Sprint ${sprintNos[aim.id]}. ↑ to a milestone, ↓ to a task, ⌫ to put it back.`
             );
           }
           return;
@@ -1386,7 +1598,7 @@ export default function App({
       if (id === undefined) return;
       event.preventDefault(); // otherwise Space opens the task
       setGrabbed({ id, target: { kind: 'status', id: STAGES[lane].id } });
-      setToast(`Grabbed. ← → lane, ↑ sprint, Space or ${MODIFIER_LABEL} to place, Esc to cancel.`);
+      setToast(`Grabbed. ← → lane, ↑ sprint, Space or ${MODIFIER_LABEL} to place, ⌫ to cancel.`);
       return;
     }
 
@@ -1498,6 +1710,29 @@ export default function App({
     close();
   }
 
+  /**
+   * What the shortcut strip is describing. Derived rather than stored, so it
+   * cannot disagree with the handler it is explaining.
+   */
+  const hintState: BoardState = {
+    armed:
+      keyCursor &&
+      (grabbed !== null ||
+        heldSprint !== null ||
+        heldMilestone !== null ||
+        aim !== null ||
+        highlighted !== null),
+    selectMode,
+    carrying: grabbed !== null,
+    heldSprint: heldSprint !== null,
+    heldMilestone: heldMilestone !== null,
+    selected: selected.length,
+    focus: aim?.kind ?? 'cards',
+  };
+
+  const outcomeFor =
+    pendingOutcome === null ? undefined : tasks.find((one) => one.id === pendingOutcome);
+
   function goHome() {
     setShowContext(false);
     setEditingNote(null);
@@ -1536,6 +1771,25 @@ export default function App({
             so the logo's travel is between two fixed points; the editor's form
             aligns to the same cap — see .editor-gutter. */}
         <div className="relative mx-auto flex h-[4.5rem] max-w-[1600px] items-center justify-end gap-6 px-6">
+          {/* Pinned to the far left whatever the page is doing. It used to
+              live inside the lockup, which travels to the middle on a
+              sub-view — taking the way back to the navigation with it. The
+              rule divides it from whatever this page puts next to it. */}
+          {!sidebarOpen && (
+            <div className="absolute left-4 top-1/2 flex -translate-y-1/2 items-center gap-2">
+              <button
+                type="button"
+                onClick={onShowSidebar}
+                aria-label="Show the sidebar"
+                title="Show the sidebar"
+                className="shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              >
+                <Icon name="menu" className="h-6 w-6" />
+              </button>
+              <span aria-hidden="true" className="h-6 w-px bg-line" />
+            </div>
+          )}
+
           {/* What is being edited, where the logo sits on the board.
               Always mounted rather than conditional, because something has to
               be there to fade out; positioned, so it costs the board nothing
@@ -1543,7 +1797,7 @@ export default function App({
               to be most of the way across. */}
           <div
             aria-hidden={!onPage}
-            className={`absolute left-6 top-1/2 flex -translate-y-1/2 items-center gap-2 transition-opacity duration-200 ${
+            className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-2 transition-opacity duration-200 ${LEFT} ${
               onPage ? 'opacity-100 delay-150' : 'pointer-events-none opacity-0'
             }`}
           >
@@ -1633,21 +1887,9 @@ export default function App({
           {!sidebarOpen && (
           <div
             className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-2 ${
-              onPage ? 'left-1/2 -translate-x-1/2' : 'left-6'
+              onPage ? 'left-1/2 -translate-x-1/2' : LEFT
             }`}
           >
-            {/* Sized to the lockup beside it rather than to the other
-                header icons: it is the way back to the whole navigation, not
-                a control on this page. */}
-            <button
-              type="button"
-              onClick={onShowSidebar}
-              aria-label="Show the sidebar"
-              title="Show the sidebar"
-              className="-ml-2 shrink-0 rounded-lg p-2 text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-            >
-              <Icon name="menu" className="h-6 w-6" />
-            </button>
           {/* A lockup rather than an icon next to text: the badge is sized to
               the full height of the title + tagline block, so their top and
               bottom edges line up. z-10 keeps it above the text, which is what
@@ -1709,7 +1951,7 @@ export default function App({
               slot carries the page's title and nothing else. On a page the
               back button and the task's name take it instead. */}
           {sidebarOpen && !onPage && (
-            <h1 className="absolute left-6 top-1/2 max-w-[22rem] -translate-y-1/2 truncate text-2xl leading-8 text-text-primary">
+            <h1 className={`absolute top-1/2 max-w-[22rem] -translate-y-1/2 truncate text-2xl leading-8 text-text-primary ${LEFT}`}>
               {projectName}
             </h1>
           )}
@@ -1722,7 +1964,7 @@ export default function App({
             <div className="anim-fade-late pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
               <VibeMeter tasks={tasks} />
               <p className="font-mono text-xs text-text-muted">
-                hold <Kbd>{MODIFIER_LABEL}</Kbd> for shortcuts
+                hold <Kbd>{MODIFIER_LABEL}</Kbd> for every shortcut
               </p>
             </div>
           )}
@@ -1810,6 +2052,8 @@ export default function App({
           mode={projectMode}
           history={projectHistory}
           returnLabel={backLabel}
+          userName={userName}
+          memberColors={memberColors}
           onSave={(next) => {
             setProjectContext(next.context);
             setProjectMode(next.mode);
@@ -1836,6 +2080,8 @@ export default function App({
           mode={agentOnPage.mode}
           history={agentOnPage.history}
           returnLabel={backLabel}
+          userName={userName}
+          memberColors={memberColors}
           // A bot that does not exist yet saves into the draft, and lands on
           // the roster with its versions already behind it when Add bot is
           // pressed.
@@ -1906,6 +2152,7 @@ export default function App({
           defaults={{ ...newDefaults, key: Math.max(0, ...tasks.map((one) => one.key)) + 1 }}
           onSave={save}
           onType={setEditingType}
+          userName={userName}
           onDelete={remove}
           brief={{ project: projectContext, agentFor }}
           onClose={close}
@@ -1986,20 +2233,14 @@ export default function App({
               </span>
             )}
             </div>
-            <p className="font-mono text-xs leading-loose text-text-muted">
-              <Kbd>{MODIFIER_LABEL}</Kbd> board · <Kbd>←</Kbd>
-              <Kbd>→</Kbd>
-              <Kbd>↑</Kbd>
-              <Kbd>↓</Kbd> move · <Kbd>Space</Kbd> grab, <Kbd>↑</Kbd> to a sprint,{' '}
-              <Kbd>Space</Kbd>/<Kbd>{MODIFIER_LABEL}</Kbd> place · <Kbd>Esc</Kbd> cancel ·{' '}
-              <Kbd>↵</Kbd> open · <Kbd>{ALT_LABEL}</Kbd> select many · <Kbd>M</Kbd> next milestone
-            </p>
+            <ShortcutBar state={hintState} />
           </div>
 
           <MilestoneTabs
             milestones={milestones}
             activeId={activeMilestone}
             aimedId={aim?.kind === 'milestone' ? aim.id : undefined}
+            heldId={heldMilestone}
             onSelect={(id) => {
               setActiveMilestone(id);
               // Do not leave the board filtered by a sprint this tab hides.
@@ -2208,6 +2449,7 @@ export default function App({
                                     ? 'landing'
                                     : undefined
                             }
+                            refused={refused === task.id}
                             onHighlight={setHighlighted}
                             selection={
                               grabbed?.id === task.id
@@ -2239,6 +2481,24 @@ export default function App({
       )}
 
       {!onPage && <DebugFab onPick={setPendingDemo} />}
+
+      {outcomeFor && (
+        <OutcomeDialog
+          title={outcomeFor.title}
+          outcome={outcomeFor.outcome}
+          markdown={outcomeFor.outcomeMarkdown}
+          onSave={(outcome, markdown) => {
+            reviseTasks((task) =>
+              task.id === outcomeFor.id
+                ? { ...task, outcome, outcomeMarkdown: markdown }
+                : task
+            );
+            setPendingOutcome(null);
+            setToast('Outcome notes saved.');
+          }}
+          onDismiss={() => setPendingOutcome(null)}
+        />
+      )}
 
       {pendingDemo && (
         <ConfirmDialog
@@ -2494,10 +2754,11 @@ export default function App({
           document.body
         )}
 
-      {/* A sprint in hand. Its own pill carries an edit button and a divider
-          that mean nothing in flight, so this is a plain copy of the label at
-          full size — a pill is small enough not to need shrinking. */}
-      {heldSprint !== null &&
+      {/* Whatever is in hand, floating over whatever the cursor is on. The
+          real pill and the real tab both carry controls that mean nothing in
+          flight, so this is a plain copy of the label — small enough not to
+          need shrinking the way a card does. */}
+      {heldChip &&
         heldAt &&
         createPortal(
           <span
@@ -2505,14 +2766,13 @@ export default function App({
             style={{
               left: heldAt.left,
               top: heldAt.top,
-              backgroundColor:
-                heldSprint.id === null ? 'rgb(var(--text-primary))' : sprintColors[heldSprint.id],
-              color: heldSprint.id === null ? 'rgb(var(--surface-card))' : TAG_INK,
+              backgroundColor: heldChip.background,
+              color: heldChip.ink,
               transform: 'translate(-50%, -100%)',
             }}
-            className="pointer-events-none fixed z-50 flex h-6 items-center rounded-full px-2.5 text-xs shadow-lg transition-all duration-200 ease-out"
+            className="pointer-events-none fixed z-50 flex h-6 max-w-[14rem] items-center truncate rounded-full px-2.5 text-xs shadow-lg transition-all duration-200 ease-out"
           >
-            {heldLabel}
+            {heldChip.label}
           </span>,
           document.body
         )}
@@ -2547,6 +2807,10 @@ export default function App({
               prev.map((sprint) => (sprint.id === sprintId ? { ...sprint, milestoneId } : sprint))
             );
             setPendingSprintFile(null);
+            // Only the sprint is put down. Reached while carrying a
+            // milestone instead, the milestone stays in hand — the same
+            // rule as filing tasks, so a run of sprints can go in one after
+            // another without picking it up again.
             setHeldSprint(null);
             setAim(null);
             setToast(

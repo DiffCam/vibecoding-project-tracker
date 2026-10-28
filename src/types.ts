@@ -15,7 +15,7 @@ export type AITool = string | null;
 /** simple = one box, spdd = the REASONS canvas, custom = sections you name. */
 import type { ContextVersion } from './contextHistory';
 import type { NoteVersion } from './agentNotes';
-import type { TaskEvent } from './taskHistory';
+import type { TaskEntry } from './taskHistory';
 
 export type ContextMode = 'simple' | 'spdd' | 'custom';
 
@@ -81,9 +81,19 @@ export interface Task {
    * The context appears only as a jump between version numbers; its content
    * lives in `history`.
    */
-  events: TaskEvent[];
+  events: TaskEntry[];
   /** Which sprint the task sits in; null is unscheduled. */
   sprintId: string | null;
+  /**
+   * What came of the work, written when the task reaches Done.
+   *
+   * Separate from `context`, which is the brief going in — this is the
+   * finding coming out, and keeping them apart is what lets a finished
+   * task be read without unpicking which half is which.
+   */
+  outcome: string;
+  /** Rendered as markdown rather than plain text. Off by default. */
+  outcomeMarkdown: boolean;
 }
 
 export interface Sprint {

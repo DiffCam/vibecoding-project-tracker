@@ -92,3 +92,40 @@ export function sectionsToMarkdown(preamble: string, sections: CustomSection[]):
   for (const section of sections) parts.push(writeSection(section));
   return parts.join('\n\n');
 }
+
+/**
+ * Which sections differ between two versions of a document.
+ *
+ * Replaces showing the first heading, which in a REASONS canvas is always
+ * "Requirements" whatever was edited — a label that looked like information
+ * and was not. Names everything that moved, because editing three sections
+ * in one save is normal and reporting one of them is worse than reporting
+ * none.
+ *
+ * A renamed section reads as one gone and one arrived. There is no identity
+ * to track them by — the heading is the name — and guessing at a rename
+ * would be wrong more often than the plain reading.
+ *
+ * The preamble has no heading to quote, so it is reported under its own
+ * label rather than silently ignored.
+ */
+export function changedSections(before: string, after: string): string[] {
+  const was = splitSections(before);
+  const now = splitSections(after);
+
+  const index = (split: Split) => new Map(split.blocks.map((b) => [b.title, b.body]));
+  const old = index(was);
+  const next = index(now);
+
+  const names: string[] = [];
+  if (was.preamble.trim() !== now.preamble.trim()) names.push('Notes');
+
+  // In `after` order, so the list reads down the document.
+  for (const [title, body] of next) {
+    if (!old.has(title) || old.get(title) !== body) names.push(title);
+  }
+  for (const title of old.keys()) {
+    if (!next.has(title)) names.push(title);
+  }
+  return names;
+}

@@ -96,9 +96,13 @@ until the user looks. Say so.
 
 ## Architecture worth knowing
 
-**Three context tiers** compose in `promptContext.ts`: agent → project → task.
-Output is byte-identical to the original when neither outer tier is set — there
-is an assertion pinning that.
+**Three context tiers** compose in `promptContext.ts`: agent → project → task,
+one `#` heading each — *Your Role*, *Full Project Context*, *Task Description*,
+*Task Context*. The task's own title is an `##` under its section; it used to be
+the only `#`, which made the contents outrank their container. The old
+"byte-identical with no outer tiers" guarantee is **retired** — every copied
+prompt now carries its headings. Empty tiers are still dropped entirely rather
+than emitted as bald headings, and that *is* asserted.
 
 **One markdown string, three editors.** `task.context` is the only store;
 Simple / SPDD / Custom are *views*. `sections.ts` owns the fence-aware `##`

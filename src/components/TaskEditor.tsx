@@ -6,9 +6,11 @@ import CanvasEditor from './CanvasEditor';
 import Icon from './Icon';
 import Picker from './Picker';
 import type { Choice } from './Picker';
+import ToolIcon, { hasToolIcon } from './ToolIcon';
 import TypeIcon from './TypeIcon';
 import HistoryList from './HistoryList';
-import TaskEventList from './TaskEventList';
+import ActivityList from './ActivityList';
+import OutcomeEditor from './OutcomeEditor';
 import { contextChange, describeChanges, naming } from '../taskHistory';
 import Segmented from './Segmented';
 import ConfirmDialog from './ConfirmDialog';
@@ -53,9 +55,6 @@ const MODES: [ContextMode, string][] = [
 const FIELD =
   'w-full rounded-lg bg-surface-card px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 const LABEL = 'block text-xs text-text-muted mb-1';
-/** The same field, sized to sit on a header row beside a label, not under one. */
-const INLINE_FIELD =
-  'rounded-lg bg-surface-card px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary';
 
 function blankTask(team: TeamMember[], defaults: NewTaskDefaults): Task {
   return {
@@ -77,6 +76,8 @@ function blankTask(team: TeamMember[], defaults: NewTaskDefaults): Task {
     history: [],
     events: [],
     weight: 1,
+    outcome: '',
+    outcomeMarkdown: false,
     contextTool: null,
     contextUpdatedAt: null,
     milestoneId: defaults.milestoneId ?? null,
@@ -106,6 +107,7 @@ export default function TaskEditor({
   defaults,
   onSave,
   onType,
+  userName,
   onDelete,
   brief,
   onClose,
@@ -126,6 +128,8 @@ export default function TaskEditor({
   /** The title and its accent live in the shared header, which is outside
       this component but has to follow the Type select rather than the task. */
   onType: (type: TaskType) => void;
+  /** The signed-in account, stamped on each version it saves. */
+  userName: string;
   onDelete: (id: string) => void;
   /** The outer two tiers, so the preview shows what Copy would put down. */
   brief: Omit<Brief, 'agent'> & { agentFor: (assignee: string) => Brief['agent'] };
@@ -135,6 +139,16 @@ export default function TaskEditor({
   const pageRef = useRef<HTMLElement>(null);
 
   useEffect(() => onType(form.type), [form.type, onType]);
+
+  /**
+   * A finished task asks a different question.
+   *
+   * The context is the brief going in; once the work is done the useful
+   * thing is what came out of it. Swapping the section rather than adding
+   * one keeps the pane to a single subject, and the context is still a tab
+   * away in its own history.
+   */
+  const done = form.status === 'done';
 
   const updatedHint = form.contextUpdatedAt && relativeTime(form.contextUpdatedAt);
 
@@ -220,6 +234,29 @@ export default function TaskEditor({
       </>
     ),
   }));
+
+  /**
+   * The tools, with their marks. "Other" and "Not recorded" have none, so
+   * they take a blank of the same size — a row that starts at a different
+   * x from the one above it reads as misaligned rather than as empty.
+   */
+  const toolPicks: Choice[] = [
+    { value: '', label: 'Not recorded', row: <span className="text-text-muted">Not recorded</span> },
+    ...AI_TOOLS.map((tool) => ({
+      value: tool,
+      label: tool,
+      row: (
+        <>
+          {hasToolIcon(tool) ? (
+            <ToolIcon tool={tool} />
+          ) : (
+            <span aria-hidden="true" className="h-4 w-4 shrink-0" />
+          )}
+          {tool}
+        </>
+      ),
+    })),
+  ];
 
   const statusPicks: Choice[] = STAGES.map((stage) => ({
     value: stage.id,
@@ -357,7 +394,12 @@ export default function TaskEditor({
     const changed = form.context !== contextAt(form.history, form.history.length - 1);
 
     const history = changed
-      ? recordVersion(form.history, basedOn, { at, mode: form.contextMode, context: form.context })
+      ? recordVersion(form.history, basedOn, {
+          at,
+          by: userName,
+          mode: form.contextMode,
+          context: form.context,
+        })
       : form.history;
 
     const changes = describeChanges(saved, form, naming(milestones, sprints));
@@ -370,7 +412,7 @@ export default function TaskEditor({
       ...form,
       contextUpdatedAt: changed ? at : form.contextUpdatedAt, // 5.D
       history,
-      events: [...form.events, { at, changes }],
+      events: [...form.events, { kind: 'change' as const, at, by: userName, changes }],
     };
   }
 
@@ -382,6 +424,28 @@ export default function TaskEditor({
    * baseline, and the newly written version becomes the one being worked
    * from — otherwise the next save would branch off the old one.
    */
+  /**
+   * Adds a comment and writes it straight away.
+   *
+   * Against `saved`, not `form`: pressing Comment must not also flush
+   * half-finished edits to the title or the context. The new entry is then
+   * folded into both, so the dirty check still compares like with like and
+   * the list shows it at once.
+   */
+  function postComment(body: string, markdown: boolean) {
+    const entry = {
+      kind: 'comment' as const,
+      at: new Date().toISOString(),
+      by: userName,
+      body,
+      ...(markdown ? { markdown: true } : {}),
+    };
+    const next = { ...saved, events: [...saved.events, entry] };
+    onSave(next);
+    setSaved(next);
+    setForm((current) => ({ ...current, events: [...current.events, entry] }));
+  }
+
   function persist(next: Task) {
     onSave(next);
     setForm(next);
@@ -648,9 +712,23 @@ export default function TaskEditor({
             the left pane scrolls instead — a canvas squeezed into three
             visible lines is worse than a scrollbar. */}
         <div className="mt-3 flex min-h-[20rem] flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          {/* Three columns rather than space-between: with the two sides
+              free to differ, "between" puts the toggle wherever the longer
+              one leaves it. Equal 1fr columns put it on the pane's centre
+              line and keep it there as the tool group grows. */}
+          {done ? (
+            <OutcomeEditor
+              outcome={form.outcome}
+              markdown={form.outcomeMarkdown}
+              onChange={(outcome, outcomeMarkdown) =>
+                setForm({ ...form, outcome, outcomeMarkdown })
+              }
+            />
+          ) : (
+          <>
+          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             <label
-              className="text-xs text-text-muted"
+              className="min-w-0 truncate text-xs text-text-muted"
               htmlFor={
                 form.contextMode === 'spdd'
                   ? 'canvas-section'
@@ -660,11 +738,23 @@ export default function TaskEditor({
               }
             >
               Task context (Markdown)
-            </label>
-            <div className="flex items-center gap-3">
+              {/* Moved in beside the label: the right-hand column is the
+                  tool's now, and this was the widest thing competing for it. */}
               {updatedHint && (
-                <span className="text-xs text-text-muted">Last updated {updatedHint}</span>
+                <span className="text-text-muted"> · updated {updatedHint}</span>
               )}
+            </label>
+
+            {/* Both edit the same string, so switching can never lose work —
+                which is why this is a view toggle and not a mode. */}
+            <Segmented
+              label="How to edit the context"
+              options={MODES}
+              value={form.contextMode}
+              onChange={(mode) => setForm({ ...form, contextMode: mode })}
+            />
+
+            <div className="flex min-w-0 items-center justify-end gap-3">
               {/* The tool is a fact about the context, not about the task, so
                   it belongs on the context's own header rather than up among
                   the scheduling fields. */}
@@ -672,26 +762,20 @@ export default function TaskEditor({
                 <label className="shrink-0 text-xs text-text-muted" htmlFor="task-tool">
                   AI tool
                 </label>
-                <select
-                  id="task-tool"
-                  className={INLINE_FIELD}
-                  value={namedTool ? 'Other' : (form.contextTool ?? '')}
-                  onChange={(event) => {
-                    const picked = event.target.value;
-                    setNamedTool(picked === 'Other');
-                    setForm({
-                      ...form,
-                      contextTool: picked === 'Other' ? null : picked || null,
-                    });
-                  }}
-                >
-                  <option value="">Not recorded</option>
-                  {AI_TOOLS.map((tool) => (
-                    <option key={tool} value={tool}>
-                      {tool}
-                    </option>
-                  ))}
-                </select>
+                <span className="w-40 shrink-0">
+                  <Picker
+                    id="task-tool"
+                    value={namedTool ? 'Other' : (form.contextTool ?? '')}
+                    choices={toolPicks}
+                    onChange={(picked) => {
+                      setNamedTool(picked === 'Other');
+                      setForm({
+                        ...form,
+                        contextTool: picked === 'Other' ? null : picked || null,
+                      });
+                    }}
+                  />
+                </span>
                 {namedTool && (
                   <input
                     autoFocus
@@ -701,18 +785,13 @@ export default function TaskEditor({
                     onChange={(event) =>
                       setForm({ ...form, contextTool: event.target.value || null })
                     }
-                    className={`${INLINE_FIELD} w-28`}
+                    // Matched to the Picker beside it rather than to the
+                    // row's small text: the two are one control, and a
+                    // 24px box against a 36px one reads as a mistake.
+                    className="w-32 shrink-0 rounded-lg bg-surface-card px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                 )}
               </span>
-              {/* Both edit the same string, so switching can never lose work —
-                  which is why this is a view toggle and not a mode. */}
-              <Segmented
-                label="How to edit the context"
-                options={MODES}
-                value={form.contextMode}
-                onChange={(mode) => setForm({ ...form, contextMode: mode })}
-              />
             </div>
           </div>
 
@@ -743,6 +822,8 @@ export default function TaskEditor({
               onChange={(event) => setForm({ ...form, context: event.target.value })}
             />
           )}
+          </>
+          )}
         </div>
         </div>
 
@@ -759,7 +840,7 @@ export default function TaskEditor({
                 options={[
                   ['preview', 'Context preview'],
                   ['context', 'Context history'],
-                  ['task', 'Task history'],
+                  ['task', 'Activity'],
                 ]}
                 value={rightPane}
                 onChange={setRightPane}
@@ -772,14 +853,20 @@ export default function TaskEditor({
             </div>
 
             {rightPane === 'task' ? (
-              <div className="min-h-0 overflow-y-auto bg-surface-preview-alt">
-                <TaskEventList events={form.events} />
+              <div className="min-h-0 bg-surface-preview-alt">
+                <ActivityList
+                  entries={form.events}
+                  user={userName}
+                  memberColors={memberColors}
+                  onComment={postComment}
+                />
               </div>
             ) : rightPane === 'context' ? (
               <div className="min-h-0 overflow-y-auto bg-surface-preview-alt">
                 <HistoryList
                   history={form.history}
                   basedOn={basedOn}
+                  memberColors={memberColors}
                   onPick={(index) => {
                     // Loads the version into the editor without writing
                     // anything — including the view it was written in.
@@ -795,14 +882,28 @@ export default function TaskEditor({
               </div>
             ) : (
           <div className="grid min-h-0 grid-rows-2">
+            {/* The left pane is writing outcome notes on a finished task,
+                so this previews those. The full context stays below it —
+                what was asked for is still worth reading beside what came
+                of it. */}
             <PreviewPane
-              title={form.contextMode === 'simple' ? 'Task context' : 'This section'}
-              markdown={section}
-              copyLabel={form.contextMode === 'simple' ? 'Copy task context' : 'Copy section'}
+              title={
+                done ? 'Outcome notes' : form.contextMode === 'simple' ? 'Task context' : 'This section'
+              }
+              markdown={done ? form.outcome : section}
+              copyLabel={
+                done
+                  ? 'Copy Outcome notes'
+                  : form.contextMode === 'simple'
+                    ? 'Copy task context'
+                    : 'Copy section'
+              }
               empty={
-                form.contextMode === 'simple'
-                  ? 'Nothing written yet.'
-                  : 'Nothing written in this section yet.'
+                done
+                  ? 'No outcome notes yet.'
+                  : form.contextMode === 'simple'
+                    ? 'Nothing written yet.'
+                    : 'Nothing written in this section yet.'
               }
               tone="preview"
             />
