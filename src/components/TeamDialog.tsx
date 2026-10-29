@@ -302,18 +302,26 @@ export default function TeamDialog({
       ref={dialogRef}
       aria-labelledby="team-dialog-title"
       onClose={onClose}
-      className="m-auto max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-xl border border-line bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      // A flex column, not a box with overflow-hidden: three add-forms plus
+      // a roster is taller than the viewport, and hidden overflow clipped
+      // the footer rather than letting anything reach it. Now the middle
+      // scrolls and the heading and buttons stay put.
+      className="m-auto flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-line bg-surface-card p-6 backdrop:bg-black/40 backdrop:backdrop-blur-sm"
     >
-      <h2 id="team-dialog-title" className="mb-1 text-base font-semibold text-text-primary">
+      <h2
+        id="team-dialog-title"
+        className="mb-1 shrink-0 text-base font-semibold text-text-primary"
+      >
         Team
       </h2>
-      <p className="mb-4 text-xs text-text-muted">Click an avatar to recolour it.</p>
+      <p className="mb-4 shrink-0 text-xs text-text-muted">Click an avatar to recolour it.</p>
 
-      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        {/* The roster. Scrolls on its own so a long team never pushes the
-            forms off the bottom of the dialog. */}
+      <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* The roster. Scrolls with the forms rather than separately: two
+            nested scrollbars in one dialog is a worse problem than a long
+            column, and the dialog's own region bounds them both. */}
         <div className="min-w-0">
-          <ul className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
+          <ul className="space-y-2 pr-1">
             {team.map((member, index) => {
               const assigned = tasks.filter((task) => task.assignee === member.name).length;
               const blocker =
@@ -768,11 +776,11 @@ export default function TeamDialog({
         />
       )}
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex shrink-0 justify-end">
         <button
           type="button"
           onClick={() => dialogRef.current?.close()}
-          className="rounded-lg px-4 py-2 text-sm text-text-muted hover:opacity-70"
+          className="rounded-lg bg-brand-primary px-5 py-2 text-sm font-medium text-white hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
         >
           Done
         </button>
