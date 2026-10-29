@@ -3,6 +3,7 @@ import App from './App';
 import ConfirmDialog from './components/ConfirmDialog';
 import Dashboard from './components/Dashboard';
 import LoginPage from './components/LoginPage';
+import SignUpPage from './components/SignUpPage';
 import Sidebar from './components/Sidebar';
 import { DEFAULT_TEAM } from './constants';
 import { blankProject, key, migrate, OPEN_KEY, PROJECTS_KEY, standing } from './projects';
@@ -47,6 +48,15 @@ export default function Shell() {
   const [openId, setOpenId] = useLocalStorage<string | null>(OPEN_KEY, null);
   const [session, setSession] = useLocalStorage<string | null>('vibetracker.session', null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  /** Which of the two signed-out screens is showing. */
+  const [signingUp, setSigningUp] = useState(false);
+  /** The confirmation notice, cleared on its own so it reads as a toast. */
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   /** A task to open as soon as its project page mounts, from the dashboard. */
   const [jumpTo, setJumpTo] = useState<string | null>(null);
   /** A person's preference, not a project's, so it lives at the top level. */
@@ -84,7 +94,29 @@ export default function Shell() {
   const account = users.find((one) => one.name === session);
 
   if (!account) {
-    return <LoginPage users={users} memberColors={memberColors} onSignIn={setSession} />;
+    return signingUp ? (
+      <SignUpPage
+        onCancel={() => setSigningUp(false)}
+        onSignedUp={(email) => {
+          // No account is created: a real service would not sign you in
+          // before the address was confirmed either, and inventing one here
+          // would make the prototype lie about what it had done.
+          setSigningUp(false);
+          setNotice(`Email confirmation sent to ${email}.`);
+        }}
+      />
+    ) : (
+      <LoginPage
+        users={users}
+        memberColors={memberColors}
+        onSignIn={setSession}
+        onSignUp={() => {
+          setNotice(null);
+          setSigningUp(true);
+        }}
+        notice={notice}
+      />
+    );
   }
 
   // The roster entry for the signed-in account, if the open project has one.
@@ -131,7 +163,11 @@ export default function Shell() {
 
   return (
     <div className="flex h-screen bg-surface-page font-sans">
-      {sidebarOpen && (
+      {/* Always on the dashboard. It is the only way between projects from
+          there, so collapsing it would leave no route back — the burger that
+          restores it lives in a project's header, which the dashboard does
+          not have. */}
+      {(sidebarOpen || open === null) && (
       <Sidebar
         owned={owned}
         managed={managed}
@@ -143,7 +179,7 @@ export default function Shell() {
         onDashboard={() => setOpenId(null)}
         onNewProject={addProject}
         onSignOut={() => setConfirmSignOut(true)}
-        onCollapse={() => setSidebarOpen(false)}
+        onCollapse={open === null ? undefined : () => setSidebarOpen(false)}
       />
       )}
 

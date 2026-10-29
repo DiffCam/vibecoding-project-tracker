@@ -23,12 +23,17 @@ export default function LoginPage({
   users,
   memberColors,
   onSignIn,
+  onSignUp,
+  notice,
 }: {
   /** Accounts, not a project's roster — a board can track someone who has
       no login, and they must not appear here. */
   users: User[];
   memberColors: Record<string, string>;
   onSignIn: (name: string) => void;
+  onSignUp: () => void;
+  /** Shown once after signing up, then cleared by the Shell. */
+  notice?: string | null;
 }) {
   // Held locally and never lifted, persisted or logged. The disabled inputs
   // cannot change them; the state exists so the fields are controlled rather
@@ -39,6 +44,18 @@ export default function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface-page px-6 py-12">
+      {/* The same inverted pill the board uses, so a message means the same
+          thing before you are signed in as after. */}
+      <p
+        role="status"
+        aria-live="polite"
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-text-primary px-4 py-2 text-sm text-surface-card transition-opacity duration-200 ${
+          notice ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        {notice}
+      </p>
+
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
           <span className="anim-pop flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-text-primary text-surface-chrome">
@@ -101,6 +118,17 @@ export default function LoginPage({
 
           <p className="mt-2 text-center text-xs text-text-muted">
             Not wired up in this prototype — there is no server to ask.
+          </p>
+
+          <p className="mt-4 border-t border-line pt-4 text-center text-sm text-text-muted">
+            No account?{' '}
+            <button
+              type="button"
+              onClick={onSignUp}
+              className="font-medium text-brand-ink underline hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            >
+              Create one
+            </button>
           </p>
         </form>
 

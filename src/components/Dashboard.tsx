@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { DUE_PILL, STATUS_DOT, STAGES } from '../constants';
-import { byUrgency, dueBadge } from '../dueState';
+import { byUrgency, dueBadge, dueState } from '../dueState';
 import Icon from './Icon';
 import TypeIcon from './TypeIcon';
 import { TYPE_ACCENT } from '../constants';
@@ -33,8 +34,27 @@ export default function Dashboard({
   onNewProject: () => void;
 }) {
   // Soonest first, the same order the Driving strip uses, so "what is next"
-  // means the same thing in both places.
+  // means the same thing in both places — and because the soonest date is
+  // the most overdue one, the worst arrears lead the list for free.
   const sorted = [...assigned].sort((a, b) => byUrgency(a.task, b.task));
+
+  const [expanded, setExpanded] = useState(false);
+  /**
+   * Three, unless there is more arrears than that.
+   *
+   * A dashboard that lists everything is a second board. Three is what fits
+   * above the fold and what a person can act on — but hiding overdue work
+   * behind a fold would be the one thing this view must not do, so the
+   * count of what is buried is offered as a way in.
+   */
+  const CAP = 3;
+  const overdue = sorted.filter(({ task }) => dueState(task) === 'overdue');
+  const hiddenOverdue = Math.max(0, overdue.length - CAP);
+  const shown = expanded ? sorted : sorted.slice(0, CAP);
+
+  /** Counted across every project, which is the only place this adds up. */
+  const soon = sorted.filter(({ task }) => dueState(task) === 'soon').length;
+  const weight = sorted.reduce((sum, { task }) => sum + Math.max(1, task.weight || 1), 0);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-8 py-10">
@@ -68,6 +88,26 @@ export default function Dashboard({
                 } project${projects.length === 1 ? '' : 's'}.`}
           </p>
 
+          {/* Four figures, all about you and all across every project —
+              which is the only place they add up. Each is a plain number
+              with its label beneath; a dashboard of dials would be weight
+              without information. */}
+          <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {([
+              ['Assigned', sorted.length, 'text-text-primary'],
+              ['Overdue', overdue.length, overdue.length > 0 ? 'text-danger' : 'text-text-muted'],
+              ['Due soon', soon, soon > 0 ? 'text-brand-ink' : 'text-text-muted'],
+              ['Weight', weight, 'text-text-primary'],
+            ] as const).map(([label, value, ink]) => (
+              <div key={label} className="rounded-lg border border-line bg-surface-card px-3 py-2">
+                <dd className={`text-2xl font-semibold leading-tight ${ink}`}>{value}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-wide text-text-muted">
+                  {label}
+                </dt>
+              </div>
+            ))}
+          </dl>
+
           <section className="mt-6" aria-labelledby="my-tasks">
             <h2
               id="my-tasks"
@@ -82,7 +122,7 @@ export default function Dashboard({
               </p>
             ) : (
               <ul className="space-y-1.5">
-                {sorted.map(({ task, project }) => {
+                {shown.map(({ task, project }) => {
                   const due = dueBadge(task);
                   const stage = STAGES.find((one) => one.id === task.status);
 
@@ -138,6 +178,38 @@ export default function Dashboard({
                   );
                 })}
               </ul>
+            )}
+
+            {/* Overdue work must never be the thing a fold hides, so the
+                count of it is the affordance rather than a bare "show all".
+                Collapsing again is offered once expanded. */}
+            {!expanded && sorted.length > CAP && (
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs text-text-primary hover:border-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              >
+                <Icon name="down" className="h-3.5 w-3.5 shrink-0" />
+                {hiddenOverdue > 0 ? (
+                  <>
+                    <span className="font-medium text-danger">+{hiddenOverdue} overdue</span>
+                    <span className="text-text-muted">
+                      · {sorted.length - CAP} more in total
+                    </span>
+                  </>
+                ) : (
+                  <span>+{sorted.length - CAP} more</span>
+                )}
+              </button>
+            )}
+            {expanded && sorted.length > CAP && (
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs text-text-muted hover:border-brand-primary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              >
+                Show the next {CAP} only
+              </button>
             )}
           </section>
 

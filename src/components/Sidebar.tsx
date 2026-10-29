@@ -41,7 +41,8 @@ export default function Sidebar({
   onDashboard: () => void;
   onNewProject: (name: string) => void;
   onSignOut: () => void;
-  onCollapse: () => void;
+  /** Absent on the dashboard, where this is the only way to navigate. */
+  onCollapse?: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -106,15 +107,17 @@ export default function Sidebar({
         {/* Labelled, not just a glyph: an unlabelled icon on a panel edge
             reads as "collapse", "pin" or "close" depending on who is
             looking. The arrow says which way it goes. */}
-        <button
-          type="button"
-          onClick={onCollapse}
-          title="Hide the sidebar"
-          className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
-        >
-          <Icon name="back" className="h-5 w-5 shrink-0" />
-          Hide
-        </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Hide the sidebar"
+            className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-text-muted hover:bg-surface-card hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            <Icon name="back" className="h-5 w-5 shrink-0" />
+            Hide
+          </button>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2">
