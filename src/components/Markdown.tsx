@@ -67,7 +67,7 @@ export default function Markdown({ children }: { children: string }) {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-brand-primary underline"
+            className="text-brand-ink underline"
           >
             {children}
           </a>

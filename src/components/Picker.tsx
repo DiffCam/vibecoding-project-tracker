@@ -285,7 +285,7 @@ export default function Picker({
                   <Icon
                     name="check"
                     aria-hidden="true"
-                    className="ml-auto h-4 w-4 shrink-0 text-brand-primary"
+                    className="ml-auto h-4 w-4 shrink-0 text-brand-ink"
                   />
                 )}
               </li>

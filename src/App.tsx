@@ -2444,7 +2444,7 @@ export default function App({
                       // themes, so a hairline is enough to read.
                       className={`mb-2.5 flex h-16 items-center justify-center rounded-lg border border-dashed text-sm transition-colors ${
                         aim?.kind === 'status' && aim.id === stage.id
-                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary'
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-ink'
                           : 'border-text-muted text-text-muted'
                       }`}
                     >

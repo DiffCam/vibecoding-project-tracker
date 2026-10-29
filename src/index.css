@@ -9,10 +9,15 @@
 :root {
   color-scheme: light;
 
-  --brand-primary: 0 122 255;   /* #007AFF */
-  --brand-accent: 255 45 85;    /* #FF2D55 */
-  --danger: 215 0 21;           /* #D70015 — 5.16:1 on the chrome. The
-                                   pink above reads 3.50 here and fails. */
+  /* The CTA fill, behind white text. Darkened from DESIGN.md's #007AFF,
+     which gave white 4.02:1 and failed AA on every button in the app. */
+  --brand-primary: 0 114 238;   /* #0072EE — white 4.52:1 */
+  /* The same blue as *ink*. A separate token because the two jobs pull
+     opposite ways: a fill behind white wants to be darker, and so does ink
+     on a light page, but in dark mode they diverge completely. */
+  --brand-ink: 0 99 208;        /* #0063D0 — 4.51 on the page, 5.43 on chrome */
+  --brand-accent: 255 45 85;    /* #FF2D55 — a fill only; see --danger for ink */
+  --danger: 204 0 19;           /* #CC0013 — 4.68 on the page, 5.39 on a card */
   --surface-page: 229 229 234;  /* #E5E5EA */
   --surface-card: 245 245 247;  /* #F5F5F7 */
   --text-primary: 29 29 31;     /* #1D1D1F */
@@ -93,10 +98,10 @@
 :root.dark {
   color-scheme: dark; /* native selects, date pickers and scrollbars follow */
 
-  --brand-primary: 10 132 255;  /* #0A84FF */
-  --brand-accent: 255 55 95;    /* #FF375F */
-  --danger: 255 55 95;          /* #FF375F — 5.40:1 on the dark chrome,
-                                   where the light red drops to 3.53. */
+  --brand-primary: 9 117 226;   /* #0975E2 — white 4.52:1 */
+  --brand-ink: 43 149 255;      /* #2B95FF — 4.53 on a card, 6.17 on chrome */
+  --brand-accent: 255 55 95;    /* #FF375F — a fill only; see --danger for ink */
+  --danger: 255 84 118;         /* #FF5476 — 4.50 on a card, 6.14 on chrome */
   --surface-page: 28 28 30;     /* #1C1C1E */
   --surface-card: 44 44 46;     /* #2C2C2E */
   --text-primary: 245 245 247;  /* #F5F5F7 */

@@ -93,7 +93,7 @@ export default function TagsDialog({
       </form>
 
       {error && (
-        <p id="tags-error" role="alert" className="mt-2 text-xs text-brand-accent">
+        <p id="tags-error" role="alert" className="mt-2 text-xs text-danger">
           {error}
         </p>
       )}

@@ -144,7 +144,7 @@ export default function MilestoneTabs({
                 aria-label={`${active ? 'Rename' : 'Delete'} milestone ${tab.name}`}
                 title={`${active ? 'Rename' : 'Delete'} milestone ${tab.name}`}
                 className={`mr-2 rounded-full p-1 text-text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
-                  active ? 'hover:text-text-primary' : 'hover:text-brand-accent'
+                  active ? 'hover:text-text-primary' : 'hover:text-danger'
                 }`}
               >
                 <Icon name={active ? 'pencil' : 'close'} className="h-3 w-3" />

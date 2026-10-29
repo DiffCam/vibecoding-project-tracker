@@ -247,7 +247,7 @@ export default function NotePage({
         <div className="editor-gutter flex shrink-0 items-center justify-between border-t border-line py-3">
           <button
             type="button"
-            className="rounded-lg px-3 py-2 text-sm text-brand-accent hover:opacity-70"
+            className="rounded-lg px-3 py-2 text-sm text-danger hover:opacity-70"
             onClick={() => {
               if (window.confirm('Delete this note? This cannot be undone.')) onDelete();
             }}

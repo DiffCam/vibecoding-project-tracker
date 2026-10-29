@@ -389,7 +389,7 @@ export default function TeamDialog({
                       onClick={() =>
                         onChange(team.filter((other) => other.name !== member.name))
                       }
-                      className="shrink-0 rounded px-2 py-1 text-xs text-brand-accent hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-50 disabled:hover:opacity-50"
+                      className="shrink-0 rounded px-2 py-1 text-xs text-danger hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-50 disabled:hover:opacity-50"
                     >
                       Remove
                     </button>
@@ -402,7 +402,7 @@ export default function TeamDialog({
                       <button
                         type="button"
                         onClick={() => onEditAgent(member.name)}
-                        className="inline-flex items-center gap-1 text-brand-primary hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                        className="inline-flex items-center gap-1 text-brand-ink hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
                       >
                         <Icon name="brief" className="h-3.5 w-3.5 shrink-0" />
                         {member.agent?.context.trim() ? 'Edit context' : 'Write context'}
@@ -476,7 +476,7 @@ export default function TeamDialog({
                       onClick={() =>
                         onProject({ invites: invites.filter((other) => other.email !== one.email) })
                       }
-                      className="shrink-0 rounded px-2 py-1 text-xs text-brand-accent hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                      className="shrink-0 rounded px-2 py-1 text-xs text-danger hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
                     >
                       Revoke
                     </button>
@@ -549,7 +549,7 @@ export default function TeamDialog({
               </p>
             )}
             {inviteError && (
-              <p id="invite-error" role="alert" className="mt-2 text-xs text-brand-accent">
+              <p id="invite-error" role="alert" className="mt-2 text-xs text-danger">
                 {inviteError}
               </p>
             )}
@@ -645,7 +645,7 @@ export default function TeamDialog({
             </div>
 
             {humanError && (
-              <p id="human-error" role="alert" className="mt-2 text-xs text-brand-accent">
+              <p id="human-error" role="alert" className="mt-2 text-xs text-danger">
                 {humanError}
               </p>
             )}
@@ -731,7 +731,7 @@ export default function TeamDialog({
             </div>
 
             {botError && (
-              <p id="bot-error" role="alert" className="mt-2 text-xs text-brand-accent">
+              <p id="bot-error" role="alert" className="mt-2 text-xs text-danger">
                 {botError}
               </p>
             )}

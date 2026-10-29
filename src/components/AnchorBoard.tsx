@@ -82,7 +82,7 @@ function AnchorSlot({
             link once saved, a snapped one until then. */}
         <Icon
           name={href ? 'link' : 'link-broken'}
-          className={`h-4 w-4 shrink-0 ${href ? 'text-brand-primary' : 'text-text-muted'}`}
+          className={`h-4 w-4 shrink-0 ${href ? 'text-brand-ink' : 'text-text-muted'}`}
         />
         <span className="truncate text-sm font-medium text-text-primary">{anchor.label}</span>
         {/* Said in words too, for anyone not seeing the icon at all. */}
@@ -136,7 +136,7 @@ function AnchorSlot({
       )}
 
       {error && (
-        <p id={`anchor-error-${anchor.id}`} role="alert" className="text-xs text-brand-accent">
+        <p id={`anchor-error-${anchor.id}`} role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}

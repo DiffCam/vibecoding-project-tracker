@@ -112,7 +112,10 @@ export function assignColors(
  * for a colour picked by hand.
  */
 export function accentInk(colour: string, dark: boolean): string {
-  const [target, amount] = dark ? [255, 0.4] : [0, 0.2];
+  // Dark was 0.4, which left the darkest entry in the palette — the crimson
+  // #9F1239 — at 4.04:1 on a card and short of AA. 0.5 clears the whole
+  // palette with headroom; light at 0.2 already does (worst 6.37).
+  const [target, amount] = dark ? [255, 0.5] : [0, 0.2];
   const channels = colour.replace('#', '').match(/../g) ?? [];
 
   return (

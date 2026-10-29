@@ -97,7 +97,7 @@ export default function HistoryList({
                   {stat.added > 0 && <span className="text-status-done">+{stat.added}</span>}
                   {stat.removed > 0 && <span className="text-danger">−{stat.removed}</span>}
                   {stat.modified > 0 && (
-                    <span className="text-brand-primary">~{stat.modified}</span>
+                    <span className="text-brand-ink">~{stat.modified}</span>
                   )}
                   {stat.added + stat.removed + stat.modified === 0 && (
                     <span className="text-text-muted">no lines changed</span>

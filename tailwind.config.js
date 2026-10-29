@@ -17,6 +17,7 @@ export default {
         brand: {
           primary: token('brand-primary'),
           accent: token('brand-accent'),
+          ink: token('brand-ink'),
         },
         surface: {
           page: token('surface-page'),

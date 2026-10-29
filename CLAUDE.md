@@ -75,6 +75,14 @@ Tokens that behave differently per theme get per-theme values, not opacity
 tricks — `surface-chrome` is the *brightest* surface in light and the *darkest*
 in dark, so no single pair works for both.
 
+**There is a contrast audit.** `scratchpad/wcag.cjs` reads the tokens straight
+out of `index.css` (resolving `var()` aliases — it missed those at first and
+reported two false failures), measures every ink/surface pair the app really
+uses per theme, and prints what fails. `palettes.cjs` covers the 30 tag chips
+and `accentInk()`; `composite.cjs` covers translucent fills, which land on a
+colour that is in neither the token list nor the class name. Re-run all three
+after touching a colour. Both themes currently read **0 failing**.
+
 **Contrast is measured, not guessed.** Text 4.5:1, non-text 3:1, and CIELAB ΔE
 when two colours must be told apart (>10 distinct; the vibe palette holds ΔE 27
 across moods). Several palettes here exist because the obvious choice failed a
@@ -135,9 +143,12 @@ is single items. `boardNavigation.carryTo` is shared and asserted.
   `git rm` it before it lands in history.
 - **Five `TEMPORARY` markers in `VibeDialog.tsx`** — the draggable probe for
   checking the vibe regions. Delete once the boundaries are settled.
-- **Two AA failures, raised several times, undecided:** white on
-  `brand-primary` (4.02 light / 3.65 dark) and `brand-accent` as text. Both
-  affect New Task and Save. Suggested: `#0062CC` light, `#0A6BD0` dark.
+- ~~Two AA failures~~ **fixed.** The cause was one token doing two jobs:
+  `brand-primary` was both the fill behind white *and* ink on a surface, which
+  pull opposite ways. Now `--brand-primary` is the fill (white 4.52:1 in both
+  themes) and `--brand-ink` is the text. `text-brand-accent` moved to
+  `--danger`, which has per-theme values. `accentInk()`'s dark amount went
+  0.4 → 0.5: the darkest chip was 4.04:1.
 - **`DESIGN.md` has drifted** from the code in at least six places (dark mode,
   `text-muted`, due colours, type colours, new surface tokens).
 - **Demo scenarios set `contextMode: 'spdd'` but leave the context empty**, so

@@ -68,7 +68,7 @@ function SectionForm({
           type="button"
           onClick={onCommit}
           disabled={!draft.title.trim()}
-          className="font-medium text-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:opacity-40"
+          className="font-medium text-brand-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:opacity-40"
         >
           {draft.index === null ? 'Add' : 'Save'}
         </button>
@@ -228,7 +228,7 @@ export default function CustomEditor({
                   }}
                   aria-label={`Remove ${section.title}`}
                   title={`Remove ${section.title}`}
-                  className="rounded p-0.5 text-text-muted hover:text-brand-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                  className="rounded p-0.5 text-text-muted hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
                 >
                   <Icon name="close" className="h-3.5 w-3.5" />
                 </button>
