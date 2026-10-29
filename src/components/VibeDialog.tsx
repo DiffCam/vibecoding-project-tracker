@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { VIBES, zoneAt } from '../vibe';
+import Segmented from './Segmented';
+import { VIBES, WORDING, zoneAt, zoneLabel } from '../vibe';
+import type { Tone } from '../vibe';
 import type { Vibe } from '../vibe';
 
 /**
@@ -69,9 +71,14 @@ function Axis({ name, value, detail }: { name: string; value: number; detail: st
  */
 export default function VibeDialog({
   reading,
+  tone,
+  onTone,
   onClose,
 }: {
   reading: Vibe;
+  /** Which register to speak in. A person's preference, not the project's. */
+  tone: Tone;
+  onTone: (tone: Tone) => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -84,7 +91,11 @@ export default function VibeDialog({
   }, []);
 
   const shown = probe ?? reading;
-  const { label, token } = VIBES[probe ? zoneAt(probe.energy, probe.pleasantness) : reading.zone];
+  const zone = probe ? zoneAt(probe.energy, probe.pleasantness) : reading.zone;
+  const { token } = VIBES[zone];
+  const label = zoneLabel(zone, tone);
+  const words = WORDING[tone];
+  const formal = tone === 'formal';
 
   function track(event: React.PointerEvent<HTMLDivElement>) {
     const box = chartRef.current?.getBoundingClientRect();
@@ -101,7 +112,7 @@ export default function VibeDialog({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 id="vibe-title" className="text-base font-semibold text-text-primary">
-            The Vibe Meter
+            {formal ? 'Project health' : 'The Vibe Meter'}
           </h2>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-text-muted">
             {/* TEMPORARY: says which it is, so a dragged dot is never mistaken
@@ -115,6 +126,19 @@ export default function VibeDialog({
             <span className="font-medium text-text-primary">{label}</span>
           </p>
         </div>
+        <div className="flex shrink-0 items-center gap-3">
+        {/* The same reading in two registers. The maths does not move — a
+            zone is a region of the chart either way — so this is a choice
+            of words, not of metric. */}
+        <Segmented
+          label="How to word the reading"
+          options={[
+            ['informal', 'Informal'],
+            ['formal', 'Formal'],
+          ]}
+          value={tone}
+          onChange={onTone}
+        />
         <button
           type="button"
           autoFocus
@@ -123,11 +147,17 @@ export default function VibeDialog({
         >
           Close
         </button>
+        </div>
       </div>
 
       {/* The chart, with the project on it. The marker is white with a dark
           ring so it reads on all five quadrant colours — the image is a fixed
-          light poster, so it cannot follow the theme. */}
+          light poster, so it cannot follow the theme.
+
+          Hidden in formal: the poster *is* the informal register — its own
+          labels are the meme ones and cannot be reworded, so showing it
+          beside corporate wording would contradict the toggle. */}
+      {!formal && (
       <div
         ref={chartRef}
         // TEMPORARY: drag anywhere on the chart to move the dot and see which
@@ -164,6 +194,7 @@ export default function VibeDialog({
           className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#1D1D1F] bg-white shadow-lg"
         />
       </div>
+      )}
 
       {/* TEMPORARY: the probe's own readout, so the number under the cursor
           can be compared with the region it is sitting on. */}
@@ -185,7 +216,7 @@ export default function VibeDialog({
 
       <div className="mt-5 space-y-4">
         <Axis
-          name="Energy"
+          name={words.energy}
           value={reading.energy}
           detail={
             reading.total === 0
@@ -200,7 +231,7 @@ export default function VibeDialog({
           }
         />
         <Axis
-          name="Pleasantness"
+          name={words.pleasantness}
           value={reading.pleasantness}
           detail={
             reading.active === 0

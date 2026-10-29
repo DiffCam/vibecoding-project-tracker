@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import VibeDialog from './VibeDialog';
-import { VIBES, vibe } from '../vibe';
+import { VIBES, WORDING, vibe, zoneLabel } from '../vibe';
+import type { Tone } from '../vibe';
 import type { Task } from '../types';
 
 /**
@@ -18,15 +19,24 @@ import type { Task } from '../types';
  * itself can carry it — and the words say the same thing as the colour, so
  * nothing is lost if the hue is hard to tell apart.
  */
-export default function VibeMeter({ tasks }: { tasks: Task[] }) {
+export default function VibeMeter({
+  tasks,
+  tone,
+  onTone,
+}: {
+  tasks: Task[];
+  tone: Tone;
+  onTone: (tone: Tone) => void;
+}) {
   const [open, setOpen] = useState(false);
   const reading = vibe(tasks);
-  const { label, token } = VIBES[reading.zone];
+  const { token } = VIBES[reading.zone];
+  const label = zoneLabel(reading.zone, tone);
 
   return (
     <>
       <p className="pointer-events-auto flex items-center gap-1.5 text-xs">
-        <span className="font-mono text-text-muted">Vibe:</span>
+        <span className="font-mono text-text-muted">{WORDING[tone].title}:</span>
         {/* Polite, so a changing vibe waits its turn rather than cutting
             across a drag or a carry. */}
         <span aria-live="polite" className="font-medium" style={{ color: `rgb(var(${token}))` }}>
@@ -51,7 +61,15 @@ export default function VibeMeter({ tasks }: { tasks: Task[] }) {
           wrapper, which the dialog would otherwise inherit — leaving its own
           Close button unclickable. */}
       {open &&
-        createPortal(<VibeDialog reading={reading} onClose={() => setOpen(false)} />, document.body)}
+        createPortal(
+          <VibeDialog
+            reading={reading}
+            tone={tone}
+            onTone={onTone}
+            onClose={() => setOpen(false)}
+          />,
+          document.body
+        )}
     </>
   );
 }

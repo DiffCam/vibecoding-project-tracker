@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { VIBES } from '../vibe';
-import type { VibeZone } from '../vibe';
+import { VIBES, zoneLabel } from '../vibe';
+import type { Tone, VibeZone } from '../vibe';
 
 const ZONES = Object.keys(VIBES) as VibeZone[];
 
@@ -11,7 +11,14 @@ const ZONES = Object.keys(VIBES) as VibeZone[];
  * everything on the board, so it should look like a tool and not a feature.
  * The confirmation lives with the caller, which owns the data it would replace.
  */
-export default function DebugFab({ onPick }: { onPick: (zone: VibeZone) => void }) {
+export default function DebugFab({
+  onPick,
+  tone,
+}: {
+  onPick: (zone: VibeZone) => void;
+  /** The demo scenarios are named by their reading, so they follow it too. */
+  tone: Tone;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +67,7 @@ export default function DebugFab({ onPick }: { onPick: (zone: VibeZone) => void 
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: `rgb(var(${VIBES[zone].token}))` }}
               />
-              {VIBES[zone].label}
+              {zoneLabel(zone, tone)}
             </button>
           ))}
         </div>

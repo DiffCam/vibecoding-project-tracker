@@ -53,8 +53,8 @@ import {
 } from './sprints';
 import { addFilter, matchesFilters } from './taskFilter';
 import type { Filter, FilterField } from './taskFilter';
-import { VIBES } from './vibe';
-import type { VibeZone } from './vibe';
+import { zoneLabel } from './vibe';
+import type { Tone, VibeZone } from './vibe';
 import { CHIP_SCALE, useCardDrag } from './useCardDrag';
 import type { DropTarget } from './useCardDrag';
 import { useFlip } from './useFlip';
@@ -250,6 +250,12 @@ export default function App({
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Milestone | null>(null);
   const [showTags, setShowTags] = useState(false);
+  /**
+   * Which register the vibe meter speaks in. Unscoped: it is a preference
+   * about how this person wants the app to talk, not a fact about a project.
+   */
+  const [tone, setTone] = useLocalStorage<Tone>('vibetracker.tone', 'informal');
+
   const [showContext, setShowContext] = useState(false);
   /** Whose agent-context page is open: a member by name, or the bot being added. */
   const [editingAgent, setEditingAgent] = useState<string | 'new' | null>(null);
@@ -982,7 +988,7 @@ export default function App({
     setActiveSprint(null);
     setFilters([]);
     setPendingDemo(null);
-    setToast(`Demo loaded — should read "${VIBES[zone].label}".`);
+    setToast(`Demo loaded — should read "${zoneLabel(zone, tone)}".`);
   }
 
   /** The corner badge for a task, or nothing if it is not in a live sprint. */
@@ -2003,7 +2009,7 @@ export default function App({
               the logo is centred. */}
           {!onPage && (
             <div className="anim-fade-late pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
-              <VibeMeter tasks={tasks} />
+              <VibeMeter tasks={tasks} tone={tone} onTone={setTone} />
               <p className="font-mono text-xs text-text-muted">
                 hold <Kbd>{MODIFIER_LABEL}</Kbd> for every shortcut
               </p>
@@ -2528,7 +2534,7 @@ export default function App({
       </main>
       )}
 
-      {!onPage && <DebugFab onPick={setPendingDemo} />}
+      {!onPage && <DebugFab onPick={setPendingDemo} tone={tone} />}
 
       {outcomeFor && (
         <OutcomeDialog
@@ -2552,7 +2558,7 @@ export default function App({
         <ConfirmDialog
           title="Replace everything with demo data?"
           confirmLabel="Replace"
-          message={`The board, milestones, sprints, team and tags are all thrown away and rebuilt to read as "${VIBES[pendingDemo].label}". This cannot be undone.`}
+          message={`The board, milestones, sprints, team and tags are all thrown away and rebuilt to read as "${zoneLabel(pendingDemo, tone)}". This cannot be undone.`}
           onConfirm={() => loadDemo(pendingDemo)}
           onCancel={() => setPendingDemo(null)}
         />

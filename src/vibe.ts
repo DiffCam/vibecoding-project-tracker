@@ -29,20 +29,40 @@ export type Vibe = {
   tasks: number;
 };
 
+/** Which register the meter speaks in. A reading, not a different metric. */
+export type Tone = 'informal' | 'formal';
+
 /**
  * The phrase and the colour token for each zone. Tokens resolve per theme in
  * index.css: the poster's palette is tuned for a white page and three of the
  * five fall under 3:1 as a dot on the light header.
+ *
+ * Two registers for the same seven readings. The maths does not change — a
+ * zone is a region of the chart either way — but "Mom would be sad" does not
+ * belong in front of a client, and "Critical" does not belong on a hackathon
+ * board. The formal wording names the two axes rather than the mood: how far
+ * the work has got, and whether it is late.
  */
-export const VIBES: Record<VibeZone, { label: string; token: string }> = {
+export const VIBES: Record<VibeZone, { label: string; formal: string; token: string }> = {
   // Spelled as the chart spells it, because the chart is what the dialog shows.
-  letsgo: { label: 'LETS GOOOOOO', token: '--vibe-letsgo' },
-  mom: { label: 'Mom would be sad', token: '--vibe-mom' },
-  ball: { label: 'Forget it, we ball', token: '--vibe-ball' },
-  back: { label: 'We are so back', token: '--vibe-back' },
-  over: { label: "It's so over", token: '--vibe-over' },
-  vibing: { label: 'We vibing', token: '--vibe-vibing' },
-  whatever: { label: 'It is what it is', token: '--vibe-whatever' },
+  letsgo: { label: 'LETS GOOOOOO', formal: 'Ahead of plan', token: '--vibe-letsgo' },
+  mom: { label: 'Mom would be sad', formal: 'Critical', token: '--vibe-mom' },
+  ball: { label: 'Forget it, we ball', formal: 'Progressing, deadlines slipping', token: '--vibe-ball' },
+  back: { label: 'We are so back', formal: 'On track', token: '--vibe-back' },
+  over: { label: "It's so over", formal: 'Off track', token: '--vibe-over' },
+  vibing: { label: 'We vibing', formal: 'On schedule, early days', token: '--vibe-vibing' },
+  whatever: { label: 'It is what it is', formal: 'Needs attention', token: '--vibe-whatever' },
+};
+
+/** What to call a zone in the register currently selected. */
+export function zoneLabel(zone: VibeZone, tone: Tone): string {
+  return tone === 'formal' ? VIBES[zone].formal : VIBES[zone].label;
+}
+
+/** What the whole meter is called, and what each axis measures. */
+export const WORDING: Record<Tone, { title: string; energy: string; pleasantness: string }> = {
+  informal: { title: 'Vibe', energy: 'Energy', pleasantness: 'Pleasantness' },
+  formal: { title: 'Project health', energy: 'Progress', pleasantness: 'Deadline health' },
 };
 
 /**
