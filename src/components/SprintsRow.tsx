@@ -96,6 +96,7 @@ export default function SprintsRow({
   onAdd,
   onEdit,
   onDelete,
+  canManage,
 }: {
   sprints: Sprint[];
   milestones: Milestone[];
@@ -120,6 +121,8 @@ export default function SprintsRow({
   onAdd: () => void;
   onEdit: (sprint: Sprint) => void;
   onDelete: (sprint: Sprint) => void;
+  /** Only the owner and managers may remove a sprint. */
+  canManage: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { edges, sync } = useScrollEdges(scrollerRef, [sprints.length, activeMilestone]);
@@ -227,6 +230,11 @@ export default function SprintsRow({
                 </span>
               </button>
 
+              {/* Editing the sprint you are in is everyone's; deleting one
+                  you are not is the project's. Both the rule and the button
+                  go, so an unmanaged pill is one control, not a gap. */}
+              {(active || canManage) && (
+              <>
               {/* currentColor, so the rule matches whichever state the pill
                   is in without a second branch. */}
               <span aria-hidden="true" className="h-full w-px bg-current opacity-40" />
@@ -240,6 +248,8 @@ export default function SprintsRow({
               >
                 <Icon name={active ? 'pencil' : 'close'} className="h-3 w-3" />
               </button>
+              </>
+              )}
             </span>
           );
         })}

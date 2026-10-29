@@ -23,6 +23,8 @@ import type { ReasonKey } from '../reasons';
 import { toPromptContext } from '../promptContext';
 import type { Brief } from '../promptContext';
 import { relativeTime } from '../relativeTime';
+import { deleteTaskBlocked, reassignBlocked } from '../permissions';
+import type { Standing } from '../permissions';
 import { colorFor, TAG_INK } from '../tagColor';
 import { dictatingSprint, orderSprints, shortDate, sprintEnd, sprintNumbers } from '../sprints';
 import type {
@@ -69,6 +71,7 @@ function blankTask(team: TeamMember[], defaults: NewTaskDefaults): Task {
     assignee: defaults.assignee ?? team[0]?.name ?? '',
     dueDate: null,
     createdDate: new Date().toISOString().slice(0, 10), // REQUIREMENTS 2.D
+    createdBy: defaults.createdBy ?? '',
     // REQUIREMENTS 5.B asked for a filled-in template; the canvas's seven
     // cards do that job without leaving headings to delete.
     context: '',
@@ -89,6 +92,8 @@ function blankTask(team: TeamMember[], defaults: NewTaskDefaults): Task {
 export type NewTaskDefaults = {
   /** The next unused task key. Required in practice; App always sends it. */
   key?: number;
+  /** Who is creating it. App always sends it; '' means nobody is recorded. */
+  createdBy?: string;
   status?: TaskStatus;
   assignee?: string;
   milestoneId?: string | null;
@@ -108,6 +113,7 @@ export default function TaskEditor({
   onSave,
   onType,
   userName,
+  viewer,
   onDelete,
   brief,
   onClose,
@@ -130,6 +136,8 @@ export default function TaskEditor({
   onType: (type: TaskType) => void;
   /** The signed-in account, stamped on each version it saves. */
   userName: string;
+  /** Their standing on this project, which decides what they may change. */
+  viewer: Standing;
   onDelete: (id: string) => void;
   /** The outer two tiers, so the preview shows what Copy would put down. */
   brief: Omit<Brief, 'agent'> & { agentFor: (assignee: string) => Brief['agent'] };
@@ -149,6 +157,11 @@ export default function TaskEditor({
    * away in its own history.
    */
   const done = form.status === 'done';
+
+  /** Why the assignee is locked, or null when it is not. */
+  const lockedAssignee = reassignBlocked(userName, task, viewer);
+  /** Why deleting is refused, or null. A new task has nothing to delete. */
+  const lockedDelete = task === null ? null : deleteTaskBlocked(userName, task, viewer);
 
   const updatedHint = form.contextUpdatedAt && relativeTime(form.contextUpdatedAt);
 
@@ -644,8 +657,13 @@ export default function TaskEditor({
                   id="task-assignee"
                   value={form.assignee}
                   choices={assigneePicks}
+                  disabled={lockedAssignee !== null}
+                  title={lockedAssignee ?? undefined}
                   onChange={(assignee) => setForm({ ...form, assignee })}
                 />
+                {lockedAssignee && (
+                  <p className="mt-1 text-[11px] text-text-muted">{lockedAssignee}</p>
+                )}
               </div>
               <div>
                 <label className={LABEL} htmlFor="task-due">
@@ -923,7 +941,9 @@ export default function TaskEditor({
           {task ? (
             <button
               type="button"
-              className="rounded-lg px-3 py-2 text-sm text-brand-accent hover:opacity-70"
+              disabled={lockedDelete !== null}
+              title={lockedDelete ?? undefined}
+              className="rounded-lg px-3 py-2 text-sm text-danger hover:opacity-70 disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-50 disabled:hover:opacity-50"
               onClick={() => {
                 if (window.confirm('Delete this task? This cannot be undone.')) {
                   onDelete(task.id);

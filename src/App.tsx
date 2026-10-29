@@ -33,6 +33,13 @@ import ThemeToggle from './components/ThemeToggle';
 import VibeMeter from './components/VibeMeter';
 import { agentNames } from './teamMember';
 import { logChange, naming, reviveEntries } from './taskHistory';
+import {
+  canDeleteTask,
+  canReassign,
+  deleteTaskBlocked,
+  reassignBlocked,
+  runsProject,
+} from './permissions';
 import { toPromptContext } from './promptContext';
 import type { Brief } from './promptContext';
 import { buildDemo } from './demoData';
@@ -197,6 +204,7 @@ export default function App({
         task.contextMode ?? ((task as { canvas?: boolean }).canvas ? 'spdd' : 'simple'),
       history: task.history ?? [],
       events: reviveEntries(task.events),
+      createdBy: task.createdBy ?? '',
       outcome: task.outcome ?? '',
       outcomeMarkdown: task.outcomeMarkdown ?? false,
       key: task.key ?? next++,
@@ -557,6 +565,15 @@ export default function App({
   }
 
   function save(task: Task) {
+    // The disabled control is the whole enforcement in a prototype, but the
+    // rule belongs where the write happens too — a second entry point later
+    // should not have to remember it.
+    const was = tasks.find((existing) => existing.id === task.id) ?? null;
+    if (was !== null && task.assignee !== was.assignee && !canReassign(userName, was, viewer)) {
+      setToast(reassignBlocked(userName, was, viewer) ?? 'Not yours to reassign.');
+      task = { ...task, assignee: was.assignee };
+    }
+
     // A hand-off is an assignee change on a task that already existed (4.E).
     const previous = tasks.find((existing) => existing.id === task.id);
     if (previous && previous.assignee !== task.assignee) {
@@ -1687,6 +1704,13 @@ export default function App({
   }
 
   function remove(id: string) {
+    // The hidden control is the enforcement, but the rule belongs at the
+    // write too — the keyboard and a future second entry point should not
+    // each have to remember it.
+    const task = tasks.find((one) => one.id === id);
+    if (task && !canDeleteTask(userName, task, viewer)) {
+      return setToast(deleteTaskBlocked(userName, task, viewer) ?? 'Not yours to delete.');
+    }
     setTasks((prev) => prev.filter((task) => task.id !== id));
     close();
   }
@@ -2166,10 +2190,15 @@ export default function App({
           sprintColors={sprintColors}
           // Recomputed at render rather than stored: a stale counter after a
           // demo load or a hand-edited store would hand out a duplicate.
-          defaults={{ ...newDefaults, key: Math.max(0, ...tasks.map((one) => one.key)) + 1 }}
+          defaults={{
+            ...newDefaults,
+            key: Math.max(0, ...tasks.map((one) => one.key)) + 1,
+            createdBy: userName,
+          }}
           onSave={save}
           onType={setEditingType}
           userName={userName}
+          viewer={viewer}
           onDelete={remove}
           brief={{ project: projectContext, agentFor }}
           onClose={close}
@@ -2275,6 +2304,7 @@ export default function App({
               setMilestones((prev) => [...prev, milestone]);
               setActiveMilestone(milestone.id); // land on what you just made
             }}
+            canManage={runsProject(viewer)}
             onDelete={(id) =>
               setPendingDelete(milestones.find((milestone) => milestone.id === id) ?? null)
             }
@@ -2313,6 +2343,7 @@ export default function App({
               onAdd={() => setEditingSprint('new')}
               onEdit={setEditingSprint}
               onDelete={setPendingSprintDelete}
+              canManage={runsProject(viewer)}
             />
 
             <div

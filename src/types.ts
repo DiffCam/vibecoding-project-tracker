@@ -35,6 +35,11 @@ export interface Task {
   assignee: string; // Restricted to hardcoded team array
   dueDate: string | null; // ISO 'YYYY-MM-DD'
   createdDate: string; // ISO 'YYYY-MM-DD'
+  /**
+   * The account that made it. Empty on tasks that predate sign-in, which
+   * is why an unknown creator never unlocks anything — see permissions.ts.
+   */
+  createdBy: string;
   context: string; // Markdown supported string
   contextTool: AITool;
   contextUpdatedAt: string | null; // ISO timestamp

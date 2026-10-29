@@ -20,6 +20,7 @@ export default function MilestoneTabs({
   onSelect,
   onAdd,
   onDelete,
+  canManage,
   onRename,
 }: {
   milestones: Milestone[];
@@ -32,6 +33,8 @@ export default function MilestoneTabs({
   onSelect: (id: string | null) => void;
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
+  /** Only the owner and managers may remove a milestone. */
+  canManage: boolean;
   onRename: (id: string, name: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -127,7 +130,10 @@ export default function MilestoneTabs({
             {/* One control per tab: rename the one you are in, remove the ones
                 you are not. Deleting the tab you are looking at would yank the
                 board out from under you. */}
-            {tab.id !== null && editing?.id !== tab.id && (
+            {/* Renaming the tab you are in is everyone's; deleting one you
+                are not is the project's. So the control survives when it
+                renames and goes when it would delete. */}
+            {tab.id !== null && editing?.id !== tab.id && (active || canManage) && (
               <button
                 type="button"
                 onClick={() =>
