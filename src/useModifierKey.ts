@@ -62,10 +62,18 @@ export function useBareKeyTap(key: string, suspended: boolean, onTap: () => void
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // Any other key cancels, so Alt+Tab and Alt+letter are not taps.
+      if (event.key !== key) return reset();
+
+      // A held key repeats, and a repeat is the same press continuing — not
+      // a new one and not a reason to disarm. Lumping it in with the guards
+      // below meant holding the key for the ~500ms before the OS starts
+      // repeating silently threw the tap away, so a deliberate press did
+      // nothing at all.
+      if (event.repeat) return;
+
       if (
         suspended ||
-        event.key !== key ||
-        event.repeat ||
         isTyping(event.target) ||
         document.querySelector('dialog[open]') !== null
       ) {
@@ -91,8 +99,15 @@ export function useBareKeyTap(key: string, suspended: boolean, onTap: () => void
   }, [key, suspended]);
 }
 
-/** How long the modifier must be held before it stops being a tap. */
-const HOLD_MS = 350;
+/**
+ * How long the modifier must be held before it stops being a tap.
+ *
+ * Was 350ms, which is inside a deliberate press — and now that the tap both
+ * enters and leaves keyboard control, a swallowed tap reads as the key being
+ * broken rather than as the cheat sheet being clever. 600ms is still a
+ * comfortable peek and well clear of a press somebody meant as a toggle.
+ */
+const HOLD_MS = 600;
 
 /**
  * Two gestures on one key: tap Cmd/Ctrl and `onTap` fires, hold it and

@@ -1081,7 +1081,8 @@ export default function App({
    */
   const armed =
     keyCursor &&
-    (grabbed !== null ||
+    (selectMode ||
+      grabbed !== null ||
       heldSprint !== null ||
       heldMilestone !== null ||
       aim !== null ||
@@ -1098,6 +1099,11 @@ export default function App({
     setGrabbed(null);
     setHeldSprint(null);
     setHeldMilestone(null);
+    // Select mode and its pile go too. Leaving them behind was the bug: the
+    // mode stayed live with no cursor to drive it, so a picked-up pile sat
+    // there answering to keys that no longer had anywhere to land.
+    setSelectMode(false);
+    setSelected([]);
     (document.activeElement as HTMLElement | null)?.blur();
     setKeyCursor(false);
   }
@@ -1109,8 +1115,19 @@ export default function App({
       // card to an accidental exit is worse than having to press twice.
       if (grabbed) return placeGrabbed(grabbed);
       // Otherwise the one key both enters and leaves, which is what makes it
-      // safe to press when you are not sure which you are in.
-      if (armed) return leaveKeyboard();
+      // safe to press when you are not sure which you are in. All the way
+      // out, including select mode — Option is the one that steps back a
+      // level, this one is the way home.
+      if (armed) {
+        const held = selected.length;
+        leaveKeyboard();
+        setToast(
+          held > 0
+            ? `Keyboard control off · ${held} selected task${held === 1 ? '' : 's'} discarded.`
+            : 'Keyboard control off.'
+        );
+        return;
+      }
       focusBoard();
     },
     onHoldChange: setShowShortcuts,
